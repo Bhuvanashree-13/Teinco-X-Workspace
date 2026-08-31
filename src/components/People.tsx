@@ -43,6 +43,14 @@ type Employee = {
   leaveRequests?: Array<{ id: number }>
   attendanceLogs?: Array<{ id: number; status: string; workDate: string }>
   lifecycleTasks?: Array<{ id: number }>
+  user?: {
+    id: number
+    email: string
+    role: 'admin' | 'employee'
+    isActive: boolean
+    lastLogin?: string | null
+    createdAt: string
+  } | null
 }
 
 type PeopleSummary = {
@@ -140,6 +148,25 @@ type AdminUser = {
   createdAt: string
 }
 
+type LoginUser = {
+  id: number
+  email: string
+  name?: string | null
+  role: 'admin' | 'employee'
+  employeeId?: number | null
+  isActive: boolean
+  lastLogin?: string | null
+  createdAt: string
+  employee?: {
+    id: number
+    employeeId: string
+    name: string
+    department?: string | null
+    status: string
+    isArchived: boolean
+  } | null
+}
+
 const today = new Date().toISOString().slice(0, 10)
 const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0, 10)
 const monthEnd = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).toISOString().slice(0, 10)
@@ -212,6 +239,7 @@ const tabs = [
   { id: 'attendance', label: 'Attendance', icon: Clock3 },
   { id: 'lifecycle', label: 'Lifecycle', icon: ListChecks },
   { id: 'payroll', label: 'Payroll', icon: BadgeIndianRupee },
+  { id: 'users', label: 'Users', icon: KeyRound },
   { id: 'admins', label: 'Admins', icon: ShieldCheck },
 ]
 
@@ -281,6 +309,7 @@ export default function People() {
   const { data: attendanceLogs, refetch: refetchAttendance } = useApi<AttendanceLog[]>(`/employees/attendance?date=${attendanceDate}`)
   const { data: lifecycleTasks, refetch: refetchLifecycle } = useApi<LifecycleTask[]>(isAdmin ? '/employees/lifecycle' : null)
   const { data: payrollBatches, refetch: refetchPayroll } = useApi<PayrollBatch[]>(isAdmin ? '/employees/payroll-batches' : null)
+  const { data: loginUsers, refetch: refetchUsers } = useApi<LoginUser[]>(isAdmin ? '/auth/users' : null)
   const { data: adminUsers, refetch: refetchAdmins } = useApi<AdminUser[]>(isAdmin ? '/auth/admins' : null)
 
   const employeeList = employees || []
@@ -289,6 +318,7 @@ export default function People() {
   const attendanceList = attendanceLogs || []
   const lifecycleList = lifecycleTasks || []
   const payrollList = payrollBatches || []
+  const userList = loginUsers || []
   const adminList = adminUsers || []
   const selectedPayroll = payrollList.find(batch => batch.id === selectedPayrollId) || payrollList[0] || null
   const visibleTabs = useMemo(() => (
@@ -322,6 +352,7 @@ export default function People() {
       refetchAttendance(),
       refetchLifecycle(),
       refetchPayroll(),
+      refetchUsers(),
       refetchAdmins(),
     ])
   }
@@ -613,6 +644,7 @@ export default function People() {
                     <th className="px-4 py-3 font-medium">Manager</th>
                     <th className="px-4 py-3 font-medium">Employment</th>
                     <th className="px-4 py-3 font-medium text-right">Monthly cost</th>
+                    {isAdmin && <th className="px-4 py-3 font-medium">Login</th>}
                     <th className="px-4 py-3 font-medium">Status</th>
                     {isAdmin && <th className="px-4 py-3 font-medium text-right">Actions</th>}
                   </tr>
@@ -630,6 +662,18 @@ export default function People() {
                       <td className="px-4 py-3 text-right font-semibold text-[#1E3A8A] dark:text-white">
                         {canViewCompensation ? formatCurrency(employee.monthlyCost) : 'Restricted'}
                       </td>
+                      {isAdmin && (
+                        <td className="px-4 py-3">
+                          {employee.user ? (
+                            <div>
+                              <StatusBadge value={employee.user.isActive ? 'active' : 'blocked'} />
+                              <p className="mt-1 text-xs text-slate-500">{employee.user.email}</p>
+                            </div>
+                          ) : (
+                            <span className="text-sm text-slate-500">No login</span>
+                          )}
+                        </td>
+                      )}
                       <td className="px-4 py-3"><StatusBadge value={employee.status} /></td>
                       {isAdmin && (
                         <td className="px-4 py-3 text-right">
@@ -915,6 +959,54 @@ export default function People() {
                 </div>
               </form>
             )}
+          </div>
+        </section>
+      )}
+
+      {activeTab === 'users' && (
+        <section className="space-y-4">
+          <div className="rounded-lg border border-slate-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800">
+            <div className="border-b border-slate-200 p-4 dark:border-gray-700">
+              <h3 className="font-semibold text-[#1E3A8A] dark:text-white">Login Users</h3>
+              <p className="mt-1 text-sm text-slate-500">Secure view of account access for admins and employee logins. Passwords and setup values are never shown.</p>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm">
+                <thead className="bg-slate-50 text-slate-500 dark:bg-gray-700/50 dark:text-slate-300">
+                  <tr>
+                    <th className="px-4 py-3 font-medium">User</th>
+                    <th className="px-4 py-3 font-medium">Role</th>
+                    <th className="px-4 py-3 font-medium">Linked employee</th>
+                    <th className="px-4 py-3 font-medium">Last login</th>
+                    <th className="px-4 py-3 font-medium">Access</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-gray-700">
+                  {userList.map(loginUser => (
+                    <tr key={loginUser.id} className="hover:bg-slate-50 dark:hover:bg-gray-700/40">
+                      <td className="px-4 py-3">
+                        <p className="font-semibold text-[#1E3A8A] dark:text-white">{loginUser.name || 'Unnamed user'}</p>
+                        <p className="text-xs text-slate-500">{loginUser.email}</p>
+                      </td>
+                      <td className="px-4 py-3"><StatusBadge value={loginUser.role} /></td>
+                      <td className="px-4 py-3 text-slate-700 dark:text-slate-300">
+                        {loginUser.employee ? (
+                          <div>
+                            <p className="font-medium">{loginUser.employee.name}</p>
+                            <p className="text-xs text-slate-500">{loginUser.employee.employeeId} · {loginUser.employee.department || 'Unassigned'} · {labelize(loginUser.employee.status)}</p>
+                          </div>
+                        ) : (
+                          <span className="text-slate-500">{loginUser.role === 'admin' ? 'Admin account' : 'Not linked'}</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-slate-700 dark:text-slate-300">{loginUser.lastLogin ? formatDate(loginUser.lastLogin) : 'No login yet'}</td>
+                      <td className="px-4 py-3"><StatusBadge value={loginUser.isActive ? 'active' : 'blocked'} /></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {userList.length === 0 && <p className="p-8 text-center text-sm text-slate-500">No login users found.</p>}
           </div>
         </section>
       )}

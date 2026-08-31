@@ -135,6 +135,7 @@ router.get('/', async (req: AuthedRequest, res) => {
         leaveRequests: { where: { status: 'pending' }, select: { id: true } },
         attendanceLogs: { orderBy: { workDate: 'desc' }, take: 1 },
         lifecycleTasks: { where: { status: { not: 'complete' } }, select: { id: true } },
+        user: { select: { id: true, email: true, role: true, isActive: true, lastLogin: true, createdAt: true } },
       },
     })
 

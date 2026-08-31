@@ -32,6 +32,27 @@ const publicAdmin = (user: any) => ({
   createdAt: user.createdAt,
 })
 
+const publicLoginUser = (user: any) => ({
+  id: user.id,
+  email: user.email,
+  name: user.name,
+  role: user.role === 'employee' ? 'employee' : 'admin',
+  employeeId: user.employeeId || null,
+  isActive: user.isActive,
+  lastLogin: user.lastLogin,
+  createdAt: user.createdAt,
+  employee: user.employee
+    ? {
+        id: user.employee.id,
+        employeeId: user.employee.employeeId,
+        name: user.employee.name,
+        department: user.employee.department,
+        status: user.employee.status,
+        isArchived: user.employee.isArchived,
+      }
+    : null,
+})
+
 // Login
 router.post('/login', async (req, res) => {
   try {
@@ -82,6 +103,31 @@ router.get('/verify', async (req, res) => {
     res.json({ user: publicUser(user) })
   } catch {
     res.status(401).json({ error: 'Invalid token' })
+  }
+})
+
+router.get('/users', requireAuth, requireAdmin, async (_req, res) => {
+  try {
+    const users = await prisma.user.findMany({
+      orderBy: [{ role: 'asc' }, { createdAt: 'desc' }],
+      include: {
+        employee: {
+          select: {
+            id: true,
+            employeeId: true,
+            name: true,
+            department: true,
+            status: true,
+            isArchived: true,
+          },
+        },
+      },
+    })
+
+    res.json(users.map(publicLoginUser))
+  } catch (error) {
+    console.error('Login user list failed:', error)
+    res.status(500).json({ error: 'Failed to load login users' })
   }
 })
 
