@@ -108,7 +108,7 @@ const requireLinkedEmployee = (req: AuthedRequest, res: any) => {
 router.get('/', async (req: AuthedRequest, res) => {
   try {
     const { status = 'active', search, department } = req.query
-    const where: any = {}
+    const where: any = { isArchived: false }
 
     if (isAdmin(req)) {
       if (status !== 'all') where.status = status as string
@@ -737,6 +737,40 @@ router.put('/:id', requireAdmin, async (req, res) => {
   } catch (error) {
     console.error('Update employee error:', error)
     res.status(500).json({ error: 'Failed to update employee' })
+  }
+})
+
+router.delete('/:id', requireAdmin, async (req, res) => {
+  try {
+    const employeeId = Number(req.params.id)
+    const existing = await prisma.employee.findUnique({
+      where: { id: employeeId },
+      include: { user: true },
+    })
+    if (!existing || existing.isArchived) return res.status(404).json({ error: 'Employee not found' })
+
+    const employee = await prisma.$transaction(async tx => {
+      if (existing.user) {
+        await tx.user.update({
+          where: { id: existing.user.id },
+          data: { isActive: false },
+        })
+      }
+
+      return tx.employee.update({
+        where: { id: employeeId },
+        data: {
+          status: 'terminated',
+          endDate: new Date(),
+          isArchived: true,
+        },
+      })
+    })
+
+    res.json({ success: true, employee: serializeEmployee(employee) })
+  } catch (error) {
+    console.error('Remove employee error:', error)
+    res.status(500).json({ error: 'Failed to remove employee' })
   }
 })
 

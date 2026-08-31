@@ -498,6 +498,21 @@ export default function People() {
     }
   }
 
+  const removeEmployee = async (employee: Employee) => {
+    if (!window.confirm(`Remove ${employee.name}? This archives the employee profile and disables their login access.`)) return
+    setSaving(`employee-delete-${employee.id}`)
+    setMessage('')
+    try {
+      await apiDelete(`/employees/${employee.id}`)
+      setMessage('Employee removed and login access disabled.')
+      await refreshPeople()
+    } catch (error: any) {
+      setMessage(error.message || 'Could not remove employee.')
+    } finally {
+      setSaving('')
+    }
+  }
+
   const renderEmployeeOptions = () => (
     <>
       <option value="">Select employee</option>
@@ -599,6 +614,7 @@ export default function People() {
                     <th className="px-4 py-3 font-medium">Employment</th>
                     <th className="px-4 py-3 font-medium text-right">Monthly cost</th>
                     <th className="px-4 py-3 font-medium">Status</th>
+                    {isAdmin && <th className="px-4 py-3 font-medium text-right">Actions</th>}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-gray-700">
@@ -615,6 +631,18 @@ export default function People() {
                         {canViewCompensation ? formatCurrency(employee.monthlyCost) : 'Restricted'}
                       </td>
                       <td className="px-4 py-3"><StatusBadge value={employee.status} /></td>
+                      {isAdmin && (
+                        <td className="px-4 py-3 text-right">
+                          <button
+                            type="button"
+                            onClick={() => removeEmployee(employee)}
+                            disabled={saving === `employee-delete-${employee.id}`}
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 px-2.5 py-1.5 text-xs font-medium text-red-700 hover:bg-red-50 disabled:opacity-50"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" /> Remove
+                          </button>
+                        </td>
+                      )}
                     </tr>
                   ))}
                 </tbody>
