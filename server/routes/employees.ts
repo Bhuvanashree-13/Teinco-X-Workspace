@@ -654,11 +654,11 @@ router.post('/', requireAdmin, async (req, res) => {
     const email = data.email ? String(data.email).trim().toLowerCase() : null
     if (!email) return res.status(400).json({ error: 'Employee email is required to create the login user' })
 
-    const existingUser = email ? await prisma.user.findUnique({ where: { email } }) : null
+    const existingUser = email ? await prisma.user.findUnique({ where: { email }, include: { employee: true } }) : null
     if (existingUser?.role === 'admin') {
       return res.status(409).json({ error: 'This email belongs to an admin account and cannot be used for an employee login' })
     }
-    if (existingUser?.employeeId) {
+    if (existingUser?.employeeId && !existingUser.employee?.isArchived) {
       return res.status(409).json({ error: 'This email is already linked to another employee login' })
     }
 
@@ -753,7 +753,10 @@ router.delete('/:id', requireAdmin, async (req, res) => {
       if (existing.user) {
         await tx.user.update({
           where: { id: existing.user.id },
-          data: { isActive: false },
+          data: {
+            isActive: false,
+            employeeId: null,
+          },
         })
       }
 
