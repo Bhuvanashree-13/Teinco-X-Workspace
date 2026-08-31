@@ -49,8 +49,7 @@ Access is provisioned privately by a workspace administrator or deployment owner
 ```
 teinco-finance-app/
 ├── prisma/
-│   ├── schema.prisma      # Database schema (18 tables)
-│   └── teinco_finance.db  # SQLite database (local)
+│   └── schema.prisma      # MySQL database schema
 ├── server/
 │   ├── index.ts           # Express server entry
 │   ├── db.ts              # Prisma client
@@ -97,8 +96,8 @@ teinco-finance-app/
 
 ## 🗄️ Database
 
-- **Engine:** SQLite (file-based)
-- **Location:** `prisma/teinco_finance.db`
+- **Engine:** MySQL
+- **Hosting:** Railway MySQL
 - **ORM:** Prisma
 - **Tables:** 18 normalized tables
 
@@ -179,13 +178,9 @@ teinco-finance-app/
 
 ```
 ┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
-│   React 18 UI   │────▶│  Express API    │────▶│  SQLite (Local) │
+│   React 18 UI   │────▶│  Express API    │────▶│ Railway MySQL   │
 │   (Port 5173)   │◄────│  (Port 3001)    │◄────│  (Prisma ORM)   │
 └─────────────────┘     └─────────────────┘     └─────────────────┘
-       │                                               │
-       │              All on YOUR computer               │
-       │         No internet required for core           │
-       └───────────────────────────────────────────────┘
 ```
 
 ### Tech Stack
@@ -193,7 +188,7 @@ teinco-finance-app/
 |-------|-----------|
 | Frontend | React 18, TypeScript, Vite, Tailwind CSS, Recharts |
 | Backend | Node.js, Express, TypeScript |
-| Database | SQLite + Prisma ORM |
+| Database | Railway MySQL + Prisma ORM |
 | Charts | Recharts |
 | Export | xlsx (SheetJS) |
 
@@ -275,19 +270,18 @@ This app is ready to deploy as a single Railway service.
 
 1. Push this project to GitHub.
 2. In Railway, click **New Project → Deploy from GitHub Repo** and select this repository.
-3. Add a persistent Railway Volume mounted at `/data`.
-4. Add the required service variables privately in Railway. Keep all account details out of README files, screenshots, deployment notes, and public issue trackers.
+3. Add a Railway **MySQL** database to the same project.
+4. Open the app service → **Variables** and add/reference the MySQL connection URL privately. Railway MySQL provides `MYSQL_URL`; the app also accepts it as `DATABASE_URL`.
+5. Add the remaining required service variables privately in Railway. Keep all account details out of README files, screenshots, deployment notes, and public issue trackers.
 
 ```bash
+DATABASE_URL=<private Railway MySQL URL>
+# or MYSQL_URL=<private Railway MySQL URL>
 JWT_SECRET=<private-value>
 SEED_DEMO_DATA=false
 ```
 
-You do not need to set `PORT`; Railway provides it automatically. When the `/data` volume is attached, the app stores SQLite at:
-
-```bash
-/data/teinco_finance.db
-```
+You do not need to set `PORT`; Railway provides it automatically.
 
 ### Railway commands
 
@@ -298,7 +292,7 @@ npm run build
 npm start
 ```
 
-`npm start` runs `prisma db push` before booting the server, which creates or updates the SQLite schema on the runtime volume.
+`npm start` runs `prisma db push` before booting the server, which creates or updates the MySQL schema using the private MySQL connection URL.
 
 ### Optional CLI deploy
 
@@ -307,7 +301,6 @@ npm install -g @railway/cli
 railway login
 railway init
 railway up
-railway volume add --mount-path /data
 railway redeploy
 ```
 
@@ -325,7 +318,7 @@ For desktop packaging, consider:
 
 ### Manual Backup
 1. Go to **Settings → Backup & Data**
-2. Or copy the file directly: `cp prisma/teinco_finance.db backups/`
+2. The app creates a JSON export backup record.
 
 ### Automatic Backup
 - Configure in Settings
@@ -333,9 +326,8 @@ For desktop packaging, consider:
 - Files saved to `./backups/` with timestamp
 
 ### Restore
-1. Stop the application
-2. Replace `prisma/teinco_finance.db` with your backup
-3. Restart
+1. Use Railway MySQL backups/snapshots when available.
+2. Keep app-generated JSON exports as a secondary audit copy.
 
 ---
 
@@ -345,7 +337,7 @@ For desktop packaging, consider:
 2. **Bank Feed Import** — HDFC, ICICI, SBI CSV import
 3. **AI Invoice OCR** — Extract data from receipts
 4. **"Ask Finance"** — Natural language queries via LLM
-5. **Multi-user Sync** — Optional Supabase/PostgreSQL backend
+5. **Advanced database backups** — Automated managed database snapshots
 6. **GST Export** — GSTR-ready Excel output
 7. **Mobile App** — React Native companion
 
@@ -353,7 +345,7 @@ For desktop packaging, consider:
 
 ## ⚠️ Known Limitations
 
-1. **Single-user** — Multi-user requires cloud backend (future)
+1. **Database backups** — Prefer Railway managed database snapshots for production restores
 2. **No live bank feeds** — Manual import or CSV only
 3. **No GST filing** — Export to accountant, don't file directly
 4. **Attachment uploads** — UI ready, file storage needs Multer setup
@@ -371,5 +363,5 @@ Proprietary — All financial data belongs to Teinco-X.ai.
 
 For issues or feature requests, contact the Teinco-X engineering team.
 
-**Database location:** `prisma/teinco_finance.db`  
-**Backup location:** `./backups/` (configurable)
+**Database:** Railway MySQL via private `DATABASE_URL` or `MYSQL_URL`  
+**Backup location:** `./backups/` JSON exports plus Railway database snapshots

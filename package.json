@@ -11,10 +11,10 @@
     "client:build": "tsc && vite build",
     "server:build": "tsc -p tsconfig.server.json",
     "start": "node scripts/start-production.mjs",
-    "db:generate": "prisma generate",
+    "db:generate": "node scripts/prisma-generate.mjs",
     "db:push": "prisma db push",
     "db:studio": "prisma studio",
-    "postinstall": "prisma generate"
+    "postinstall": "node scripts/prisma-generate.mjs"
   },
   "dependencies": {
     "@prisma/client": "^5.15.0",

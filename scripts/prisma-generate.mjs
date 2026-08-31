@@ -11,18 +11,14 @@ if (!configuredDatabaseUrl) {
 process.env.DATABASE_URL = configuredDatabaseUrl
 
 const prismaCliPath = path.resolve(process.cwd(), 'node_modules/prisma/build/index.js')
-const dbPush = spawnSync(process.execPath, [prismaCliPath, 'db', 'push', '--skip-generate'], {
+const generate = spawnSync(process.execPath, [prismaCliPath, 'generate'], {
   stdio: 'inherit',
   env: process.env,
 })
 
-if (dbPush.error) {
-  console.error(dbPush.error)
+if (generate.error) {
+  console.error(generate.error)
   process.exit(1)
 }
 
-if (dbPush.status !== 0) {
-  process.exit(dbPush.status || 1)
-}
-
-await import('../dist-server/server/index.js')
+process.exit(generate.status || 0)
