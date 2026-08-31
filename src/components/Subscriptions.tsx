@@ -19,6 +19,20 @@ const emptySubscriptionForm = {
   notes: '',
 }
 
+const buildCategoryOptions = (categories: any[] = []) => categories
+  .filter(category => category?.isActive !== false && category?.isArchived !== true)
+  .map(category => ({
+    id: category.id,
+    label: category.parent?.name ? `${category.parent.name} / ${category.name}` : category.name,
+    isChild: Boolean(category.parentId),
+  }))
+  .sort((a, b) => a.label.localeCompare(b.label))
+
+const categoryLabel = (category: any) => {
+  if (!category) return '-'
+  return category.parent?.name ? `${category.parent.name} / ${category.name}` : category.name
+}
+
 export default function Subscriptions() {
   const { isAdmin } = useRole()
   const [filter, setFilter] = useState('active')
@@ -31,6 +45,7 @@ export default function Subscriptions() {
   const { data: categories } = useApi<any[]>('/categories')
 
   const subs = data || []
+  const categoryOptions = buildCategoryOptions(categories || [])
 
   const submitSubscription = async (event: React.FormEvent) => {
     event.preventDefault()
@@ -40,7 +55,7 @@ export default function Subscriptions() {
       await apiPost('/subscriptions', {
         productName: form.productName.trim(),
         vendorId: form.vendorId ? Number(form.vendorId) : null,
-        categoryId: form.categoryId ? Number(form.categoryId) : null,
+        categoryId: Number(form.categoryId),
         cost: Number(form.cost) || 0,
         currency: form.currency.trim() || 'INR',
         billingCycle: form.billingCycle,
@@ -129,11 +144,12 @@ export default function Subscriptions() {
       ) : (
         <div className="brand-card overflow-hidden dark:border-gray-700 dark:bg-gray-800">
           <div className="overflow-x-auto">
-            <table className="min-w-[760px] w-full text-sm text-left">
+            <table className="min-w-[860px] w-full text-sm text-left">
               <thead className="bg-gray-50 dark:bg-gray-700/50 text-gray-500 dark:text-gray-400">
                 <tr>
                   <th className="px-4 py-3 font-medium">Subscription</th>
                   <th className="px-4 py-3 font-medium">Vendor</th>
+                  <th className="px-4 py-3 font-medium">Category</th>
                   <th className="px-4 py-3 font-medium">Cycle</th>
                   <th className="px-4 py-3 font-medium">Cost</th>
                   <th className="px-4 py-3 font-medium">Next Billing</th>
@@ -148,6 +164,7 @@ export default function Subscriptions() {
                       <div className="text-xs text-gray-500">{sub.subscriptionId}</div>
                     </td>
                     <td className="px-4 py-3 text-gray-600 dark:text-gray-300">{sub.vendor?.name}</td>
+                    <td className="px-4 py-3 text-gray-600 dark:text-gray-300">{categoryLabel(sub.category)}</td>
                     <td className="px-4 py-3">
                       <span className="inline-flex items-center gap-1 text-xs">
                         <RefreshCw className="w-3 h-3" />
@@ -196,7 +213,7 @@ export default function Subscriptions() {
             <form onSubmit={submitSubscription} className="mobile-dialog-form">
               <label className="text-sm dark:text-gray-200">Subscription name<input required value={form.productName} onChange={event => setForm({ ...form, productName: event.target.value })} placeholder="e.g. Accounting software" className="mt-1 w-full rounded-lg border p-2.5 dark:border-gray-600 dark:bg-gray-900" /></label>
               <label className="text-sm dark:text-gray-200">Vendor<select value={form.vendorId} onChange={event => setForm({ ...form, vendorId: event.target.value })} className="mt-1 w-full rounded-lg border p-2.5 dark:border-gray-600 dark:bg-gray-900"><option value="">No vendor</option>{(vendors || []).map(vendor => <option key={vendor.id} value={vendor.id}>{vendor.name}</option>)}</select></label>
-              <label className="text-sm dark:text-gray-200">Category<select value={form.categoryId} onChange={event => setForm({ ...form, categoryId: event.target.value })} className="mt-1 w-full rounded-lg border p-2.5 dark:border-gray-600 dark:bg-gray-900"><option value="">No category</option>{(categories || []).filter(category => !category.parentId).map(category => <option key={category.id} value={category.id}>{category.name}</option>)}</select></label>
+              <label className="text-sm dark:text-gray-200">Category<select required value={form.categoryId} onChange={event => setForm({ ...form, categoryId: event.target.value })} className="mt-1 w-full rounded-lg border p-2.5 dark:border-gray-600 dark:bg-gray-900"><option value="">{categoryOptions.length ? 'Select category' : 'No categories available'}</option>{categoryOptions.map(category => <option key={category.id} value={category.id}>{category.isChild ? '— ' : ''}{category.label}</option>)}</select><span className="mt-1 block text-xs text-slate-500">Required so recurring commitments are grouped correctly.</span></label>
               <label className="text-sm dark:text-gray-200">Billing cycle<select value={form.billingCycle} onChange={event => setForm({ ...form, billingCycle: event.target.value })} className="mt-1 w-full rounded-lg border p-2.5 dark:border-gray-600 dark:bg-gray-900"><option value="monthly">Monthly</option><option value="yearly">Yearly</option><option value="quarterly">Quarterly</option><option value="half_yearly">Half yearly</option><option value="weekly">Weekly</option><option value="daily">Daily</option></select></label>
               <label className="text-sm dark:text-gray-200">Cost<input required min="0.01" step="0.01" type="number" value={form.cost} onChange={event => setForm({ ...form, cost: event.target.value })} className="mt-1 w-full rounded-lg border p-2.5 dark:border-gray-600 dark:bg-gray-900" /></label>
               <label className="text-sm dark:text-gray-200">Currency<input value={form.currency} onChange={event => setForm({ ...form, currency: event.target.value.toUpperCase() })} maxLength={3} className="mt-1 w-full rounded-lg border p-2.5 dark:border-gray-600 dark:bg-gray-900" /></label>

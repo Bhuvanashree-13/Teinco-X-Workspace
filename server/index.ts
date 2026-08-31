@@ -36,6 +36,158 @@ const uploadsPath = process.env.UPLOAD_DIR
   ? path.resolve(process.env.UPLOAD_DIR)
   : path.resolve(dataRootPath, 'uploads')
 
+const starterExpenseCategories = [
+  {
+    code: 'PEOPLE',
+    name: 'People',
+    color: '#10B981',
+    children: [
+      ['SALARIES', 'Salaries'],
+      ['CONTRACTORS', 'Contractor Payments'],
+      ['BENEFITS', 'Employee Benefits'],
+      ['RECRUITMENT', 'Recruitment'],
+      ['TRAINING', 'Training'],
+    ],
+  },
+  {
+    code: 'SOFTWARE',
+    name: 'Software & SaaS',
+    color: '#1E3A8A',
+    children: [
+      ['MICROSOFT', 'Microsoft'],
+      ['GOOGLE', 'Google'],
+      ['ADOBE', 'Adobe'],
+      ['GITHUB', 'GitHub'],
+      ['FIGMA', 'Figma'],
+      ['NOTION', 'Notion'],
+      ['SLACK', 'Slack'],
+      ['OTHER_SAAS', 'Other SaaS'],
+    ],
+  },
+  {
+    code: 'AI_APIS',
+    name: 'AI & APIs',
+    color: '#6366F1',
+    children: [
+      ['OPENAI', 'OpenAI'],
+      ['ANTHROPIC', 'Anthropic'],
+      ['GOOGLE_AI', 'Google AI'],
+      ['AZURE_AI', 'Azure AI'],
+      ['API_USAGE', 'API Usage'],
+      ['LLM_TOKENS', 'LLM Tokens'],
+    ],
+  },
+  {
+    code: 'CLOUD',
+    name: 'Cloud & Infrastructure',
+    color: '#0EA5E9',
+    children: [
+      ['AWS', 'AWS'],
+      ['AZURE', 'Microsoft Azure'],
+      ['GCP', 'Google Cloud'],
+      ['GPU_COMPUTE', 'GPU Compute'],
+      ['STORAGE', 'Storage'],
+      ['CDN', 'CDN'],
+      ['HOSTING', 'Hosting'],
+    ],
+  },
+  {
+    code: 'OPERATIONS',
+    name: 'Business Operations',
+    color: '#64748B',
+    children: [
+      ['OFFICE', 'Office'],
+      ['INTERNET', 'Internet'],
+      ['MOBILE', 'Mobile'],
+      ['UTILITIES', 'Utilities'],
+      ['TRAVEL', 'Travel'],
+      ['MEALS', 'Meals'],
+    ],
+  },
+  {
+    code: 'PROF_SERVICES',
+    name: 'Professional Services',
+    color: '#F59E0B',
+    children: [
+      ['LEGAL', 'Legal'],
+      ['ACCOUNTING', 'Accounting'],
+      ['CONSULTING', 'Consulting'],
+      ['COMPLIANCE', 'Compliance'],
+      ['CS', 'Company Secretary'],
+    ],
+  },
+  {
+    code: 'MARKETING',
+    name: 'Marketing',
+    color: '#EC4899',
+    children: [
+      ['ADVERTISING', 'Advertising'],
+      ['SOCIAL_MEDIA', 'Social Media'],
+      ['EVENTS', 'Events'],
+      ['BRANDING', 'Branding'],
+      ['CONTENT', 'Content'],
+    ],
+  },
+  {
+    code: 'MISC',
+    name: 'Miscellaneous',
+    color: '#94A3B8',
+    children: [
+      ['BANKING_FEES', 'Banking Fees'],
+      ['OTHER', 'Other'],
+    ],
+  },
+]
+
+async function ensureStarterExpenseCategories() {
+  const categoryCount = await prisma.expenseCategory.count({ where: { isArchived: false } })
+  if (categoryCount > 0) return
+
+  let sortOrder = 0
+  for (const category of starterExpenseCategories) {
+    const parent = await prisma.expenseCategory.upsert({
+      where: { code: category.code },
+      update: {
+        name: category.name,
+        color: category.color,
+        parentId: null,
+        isActive: true,
+        isArchived: false,
+        sortOrder: sortOrder++,
+      },
+      create: {
+        code: category.code,
+        name: category.name,
+        color: category.color,
+        sortOrder: sortOrder++,
+      },
+    })
+
+    for (const [code, name] of category.children) {
+      await prisma.expenseCategory.upsert({
+        where: { code },
+        update: {
+          name,
+          color: category.color,
+          parentId: parent.id,
+          isActive: true,
+          isArchived: false,
+          sortOrder: sortOrder++,
+        },
+        create: {
+          code,
+          name,
+          color: category.color,
+          parentId: parent.id,
+          sortOrder: sortOrder++,
+        },
+      })
+    }
+  }
+
+  console.log('✓ Starter expense categories created')
+}
+
 app.use(cors())
 app.use(express.json({ limit: '50mb' }))
 app.use(express.urlencoded({ extended: true, limit: '50mb' }))
@@ -113,6 +265,8 @@ async function startServer() {
       console.log('✓ Initial settings created')
     }
   }
+
+  await ensureStarterExpenseCategories()
 
   const adminCount = await prisma.user.count({ where: { role: 'admin' } })
   const bootstrapAdminEmail = process.env.BOOTSTRAP_ADMIN_EMAIL?.trim().toLowerCase()

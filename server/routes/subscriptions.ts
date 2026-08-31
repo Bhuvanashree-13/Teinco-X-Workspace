@@ -20,7 +20,10 @@ router.get('/', async (req, res) => {
 
     const subs = await prisma.subscription.findMany({
       where,
-      include: { vendor: { select: { name: true, code: true } } },
+      include: {
+        vendor: { select: { name: true, code: true } },
+        category: { select: { name: true, code: true, color: true, parent: { select: { name: true } } } },
+      },
       orderBy: { nextBillingDate: 'asc' }
     })
     res.json(subs)
@@ -33,7 +36,7 @@ router.get('/:id', async (req, res) => {
   try {
     const sub = await prisma.subscription.findUnique({
       where: { id: Number(req.params.id) },
-      include: { vendor: true }
+      include: { vendor: true, category: { include: { parent: { select: { name: true } } } } }
     })
     if (!sub) return res.status(404).json({ error: 'Subscription not found' })
     res.json(sub)
@@ -60,11 +63,15 @@ router.post('/', requireAdmin, async (req, res) => {
     if (!productName) return res.status(400).json({ error: 'Subscription name is required' })
     if (cost <= 0) return res.status(400).json({ error: 'Subscription cost must be greater than zero' })
 
+    const categoryId = Number(data.categoryId)
+
+    if (!Number.isFinite(categoryId) || categoryId <= 0) return res.status(400).json({ error: 'Subscription category is required' })
+
     const sub = await prisma.subscription.create({
       data: {
         vendorId: data.vendorId ? Number(data.vendorId) : null,
         productName,
-        categoryId: data.categoryId ? Number(data.categoryId) : null,
+        categoryId,
         cost,
         currency: data.currency || 'INR',
         billingCycle,

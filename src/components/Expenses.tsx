@@ -8,6 +8,15 @@ const emptyForm = {
   businessPurpose: '', invoiceNumber: '', taxDeductible: false, gstInputCredit: 'unknown'
 }
 
+const buildCategoryOptions = (categories: any[] = []) => categories
+  .filter(category => category?.isActive !== false && category?.isArchived !== true)
+  .map(category => ({
+    id: category.id,
+    label: category.parent?.name ? `${category.parent.name} / ${category.name}` : category.name,
+    isChild: Boolean(category.parentId),
+  }))
+  .sort((a, b) => a.label.localeCompare(b.label))
+
 export default function Expenses() {
   const [page, setPage] = useState(1)
   const [search, setSearch] = useState('')
@@ -28,6 +37,7 @@ export default function Expenses() {
   const baseAmount = Number(form.baseAmount) || 0
   const gstAmount = Number(form.gstAmount) || 0
   const totalAmount = baseAmount + gstAmount
+  const categoryOptions = buildCategoryOptions(categories || [])
 
   const submitExpense = async (event: React.FormEvent) => {
     event.preventDefault()
@@ -192,7 +202,7 @@ export default function Expenses() {
               <label className="text-sm dark:text-gray-200">Date<input required type="date" value={form.expenseDate} onChange={e => setForm({...form, expenseDate:e.target.value})} className="mt-1 w-full rounded-lg border p-2.5 dark:border-gray-600 dark:bg-gray-900" /></label>
               <label className="text-sm dark:text-gray-200">Vendor<select value={form.vendorId} onChange={e => setForm({...form, vendorId:e.target.value})} className="mt-1 w-full rounded-lg border p-2.5 dark:border-gray-600 dark:bg-gray-900"><option value="">No vendor</option>{(vendors || []).map(v => <option key={v.id} value={v.id}>{v.name}</option>)}</select></label>
               <label className="text-sm sm:col-span-2 dark:text-gray-200">Description<input required value={form.description} onChange={e => setForm({...form, description:e.target.value})} placeholder="What was purchased?" className="mt-1 w-full rounded-lg border p-2.5 dark:border-gray-600 dark:bg-gray-900" /></label>
-              <label className="text-sm dark:text-gray-200">Category<select required value={form.categoryId} onChange={e => setForm({...form, categoryId:e.target.value})} className="mt-1 w-full rounded-lg border p-2.5 dark:border-gray-600 dark:bg-gray-900"><option value="">Select category</option>{(categories || []).filter(c => !c.parentId).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></label>
+              <label className="text-sm dark:text-gray-200">Category<select required value={form.categoryId} onChange={e => setForm({...form, categoryId:e.target.value})} className="mt-1 w-full rounded-lg border p-2.5 dark:border-gray-600 dark:bg-gray-900"><option value="">{categoryOptions.length ? 'Select category' : 'No categories available'}</option>{categoryOptions.map(category => <option key={category.id} value={category.id}>{category.isChild ? '— ' : ''}{category.label}</option>)}</select><span className="mt-1 block text-xs text-slate-500">Choose the exact category or subcategory for this spend.</span></label>
               <label className="text-sm dark:text-gray-200">Expense type<select value={form.expenseType} onChange={e => setForm({...form, expenseType:e.target.value})} className="mt-1 w-full rounded-lg border p-2.5 dark:border-gray-600 dark:bg-gray-900"><option value="one_time">One time</option><option value="recurring">Recurring</option><option value="salary">Salary</option><option value="reimbursement">Reimbursement</option><option value="capex">Capital expense</option><option value="opex">Operating expense</option></select></label>
               <label className="text-sm dark:text-gray-200">Net amount (₹)<input required min="0.01" step="0.01" type="number" value={form.baseAmount} onChange={e => setForm({...form, baseAmount:e.target.value})} className="mt-1 w-full rounded-lg border p-2.5 dark:border-gray-600 dark:bg-gray-900" /></label>
               <label className="text-sm dark:text-gray-200">GST amount (₹)<input min="0" step="0.01" type="number" value={form.gstAmount} onChange={e => setForm({...form, gstAmount:e.target.value})} className="mt-1 w-full rounded-lg border p-2.5 dark:border-gray-600 dark:bg-gray-900" /></label>
