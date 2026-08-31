@@ -1,0 +1,129 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700&family=Sora:wght@500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 220 33% 98%;
+    --foreground: 221 39% 11%;
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+    --primary: 221 64% 33%;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+    --muted: 220 14% 96%;
+    --muted-foreground: 220 9% 46%;
+    --accent: 214 100% 97%;
+    --accent-foreground: 221 64% 33%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 221 64% 33%;
+    --radius: 0.5rem;
+    --teinco-navy: #1E3A8A;
+    --teinco-sky: #60A5FA;
+    --teinco-ice: #EFF6FF;
+    --teinco-ink: #111827;
+    --teinco-slate: #6B7280;
+    --teinco-cloud: #F3F4F6;
+    --teinco-growth: #10B981;
+    --teinco-shadow: 0 1px 3px rgba(17, 24, 39, 0.05);
+  }
+
+  .dark {
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 217.2 91.2% 59.8%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 224.3 76.3% 48%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    color: var(--teinco-ink);
+    background:
+      radial-gradient(circle at top left, rgba(96, 165, 250, 0.12), transparent 34rem),
+      var(--teinco-cloud);
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11", "tnum";
+  }
+  button, a, input, select, textarea { @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1E3A8A] focus-visible:ring-offset-2; }
+  table { font-variant-numeric: tabular-nums; }
+  h1, h2, h3 {
+    font-family: Sora, Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    letter-spacing: -0.01em;
+  }
+}
+
+@layer components {
+  .finance-value { font-variant-numeric: tabular-nums; letter-spacing: 0; }
+  .brand-card { @apply rounded-lg border border-slate-200 bg-white shadow-[0_1px_3px_rgba(17,24,39,0.05)]; }
+  .brand-heading { @apply text-[32px] font-semibold leading-tight text-[#1E3A8A] dark:text-white; }
+  .brand-section-heading { @apply text-xl font-medium text-[#1E3A8A] dark:text-white; }
+  .brand-label { @apply text-sm font-semibold text-[#6B7280] dark:text-slate-300; }
+  .brand-copy { @apply text-sm text-[#111827] dark:text-slate-100; }
+  .brand-caption { @apply text-xs text-[#6B7280] dark:text-slate-400; }
+  .brand-primary-button { @apply rounded-lg bg-[#1E3A8A] px-4 py-2 text-sm font-medium text-white shadow-[0_1px_3px_rgba(17,24,39,0.05)] transition-colors hover:bg-[#1B3378] disabled:opacity-50; }
+  .brand-secondary-button { @apply rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-[#111827] shadow-[0_1px_3px_rgba(17,24,39,0.05)] transition-colors hover:bg-[#EFF6FF] dark:border-gray-700 dark:bg-gray-800 dark:text-white; }
+}
+
+@layer utilities {
+  .rounded-xl { border-radius: 0.5rem; }
+  .rounded-2xl { border-radius: 0.5rem; }
+  .shadow-sm { box-shadow: var(--teinco-shadow); }
+  .shadow-md { box-shadow: 0 2px 8px rgba(17, 24, 39, 0.08); }
+  .shadow-2xl { box-shadow: 0 18px 40px rgba(17, 24, 39, 0.18); }
+}
+
+@media print {
+  body {
+    background: white !important;
+  }
+
+  body * {
+    visibility: hidden;
+  }
+
+  .payslip-print-surface,
+  .payslip-print-surface * {
+    visibility: visible;
+  }
+
+  .payslip-print-surface {
+    position: absolute;
+    inset: 0 auto auto 0;
+    width: 100%;
+    min-height: 100vh;
+    border: 0 !important;
+    box-shadow: none !important;
+  }
+
+  .no-print {
+    display: none !important;
+  }
+}

@@ -1,0 +1,574 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Settings {
+  id                 Int      @id @default(autoincrement())
+  companyName        String   @default("Teinco-X Workspace")
+  country            String   @default("India")
+  baseCurrency       String   @default("INR")
+  reportingYear      String   @default("calendar") // calendar | financial
+  financialYearStart Int      @default(4) // April
+  financialYearEnd   Int      @default(3) // March
+  gstin              String?
+  pan                String?
+  logoUrl            String?
+  backupPath         String   @default("./backups")
+  autoBackup         Boolean  @default(true)
+  autoBackupInterval Int      @default(24) // hours
+  sessionTimeout     Int      @default(30) // minutes
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+}
+
+model User {
+  id        Int        @id @default(autoincrement())
+  email     String     @unique
+  name      String?
+  password  String
+  role      String     @default("admin") // admin | employee
+  employeeId Int?      @unique
+  employee   Employee? @relation(fields: [employeeId], references: [id], onDelete: SetNull)
+  isActive  Boolean    @default(true)
+  lastLogin DateTime?
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  auditLogs AuditLog[]
+}
+
+model ExpenseCategory {
+  id                  Int               @id @default(autoincrement())
+  code                String            @unique
+  name                String
+  description         String?
+  color               String            @default("#3b82f6")
+  icon                String?
+  sortOrder           Int               @default(0)
+  isActive            Boolean           @default(true)
+  isArchived          Boolean           @default(false)
+  parentId            Int?
+  parent              ExpenseCategory?  @relation("CategoryHierarchy", fields: [parentId], references: [id])
+  children            ExpenseCategory[] @relation("CategoryHierarchy")
+  expenses            Expense[]         @relation("CategoryExpenses")
+  subcategoryExpenses Expense[]         @relation("SubcategoryExpenses")
+  subscriptions       Subscription[]
+  budgets             Budget[]
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+
+  @@index([isActive])
+  @@index([isArchived])
+}
+
+model Vendor {
+  id            Int            @id @default(autoincrement())
+  code          String         @unique // VEN-000001
+  name          String
+  type          String         @default("software") // software | cloud | hardware | service | other
+  contactName   String?
+  email         String?
+  phone         String?
+  website       String?
+  gstin         String?
+  pan           String?
+  country       String         @default("India")
+  currency      String         @default("INR")
+  address       String?
+  city          String?
+  state         String?
+  postalCode    String?
+  notes         String?
+  isActive      Boolean        @default(true)
+  expenses      Expense[]
+  subscriptions Subscription[]
+  assets        Asset[]
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  @@index([name])
+  @@index([isActive])
+}
+
+model Project {
+  id             Int                 @id @default(autoincrement())
+  code           String              @unique
+  name           String
+  description    String?
+  status         String              @default("active") // active | paused | completed | archived
+  startDate      DateTime?
+  endDate        DateTime?
+  budget         Decimal?            @default(0)
+  color          String              @default("#6366f1")
+  expenses       Expense[]
+  budgets        Budget[]
+  scheduleEvents ScheduleEvent[]
+  milestones     ScheduleMilestone[]
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+
+  @@index([status])
+}
+
+model CostCenter {
+  id          Int       @id @default(autoincrement())
+  code        String    @unique
+  name        String
+  description String?
+  isActive    Boolean   @default(true)
+  expenses    Expense[]
+  budgets     Budget[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model PaymentMethod {
+  id            Int            @id @default(autoincrement())
+  name          String         @unique
+  type          String         @default("bank_transfer") // bank_transfer | upi | credit_card | debit_card | cash | corporate_card | personal_card | other
+  isActive      Boolean        @default(true)
+  expenses      Expense[]
+  subscriptions Subscription[]
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+}
+
+model Currency {
+  id        Int      @id @default(autoincrement())
+  code      String   @unique // INR, USD, EUR
+  name      String
+  symbol    String
+  isActive  Boolean  @default(true)
+  isBase    Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model ExchangeRate {
+  id           Int      @id @default(autoincrement())
+  fromCurrency String
+  toCurrency   String
+  rate         Decimal
+  date         DateTime @default(now())
+  source       String   @default("manual")
+  createdAt    DateTime @default(now())
+
+  @@unique([fromCurrency, toCurrency, date])
+}
+
+model Expense {
+  id                 Int                 @id @default(autoincrement())
+  expenseId          String              @unique // EXP-2026-000001
+  expenseDate        DateTime
+  vendorId           Int?
+  vendor             Vendor?             @relation(fields: [vendorId], references: [id])
+  description        String
+  categoryId         Int
+  category           ExpenseCategory     @relation("CategoryExpenses", fields: [categoryId], references: [id])
+  subcategoryId      Int?
+  subcategory        ExpenseCategory?    @relation(fields: [subcategoryId], references: [id], name: "SubcategoryExpenses")
+  expenseType        String              @default("one_time") // recurring | one_time | adhoc | salary | reimbursement | capex | opex
+  baseAmount         Decimal             @default(0)
+  gstAmount          Decimal             @default(0)
+  cgstAmount         Decimal             @default(0)
+  sgstAmount         Decimal             @default(0)
+  igstAmount         Decimal             @default(0)
+  otherTaxAmount     Decimal             @default(0)
+  tdsAmount          Decimal             @default(0)
+  totalAmount        Decimal
+  originalCurrency   String              @default("INR")
+  originalAmount     Decimal
+  exchangeRate       Decimal             @default(1)
+  baseCurrency       String              @default("INR")
+  baseCurrencyAmount Decimal
+  paymentMethodId    Int?
+  paymentMethod      PaymentMethod?      @relation(fields: [paymentMethodId], references: [id])
+  paidBy             String?
+  businessPurpose    String?
+  projectId          Int?
+  project            Project?            @relation(fields: [projectId], references: [id])
+  costCenterId       Int?
+  costCenter         CostCenter?         @relation(fields: [costCenterId], references: [id])
+  isRecurring        Boolean             @default(false)
+  frequency          String? // daily | weekly | monthly | quarterly | half_yearly | yearly | custom
+  startDate          DateTime?
+  endDate            DateTime?
+  nextDueDate        DateTime?
+  invoiceNumber      String?
+  invoiceDate        DateTime?
+  taxDeductible      Boolean             @default(false)
+  gstInputCredit     String              @default("unknown") // yes | no | unknown
+  isCapitalExpense   Boolean             @default(false)
+  status             String              @default("active") // active | archived | deleted
+  notes              String?
+  tags               String?
+  attachments        ExpenseAttachment[]
+  auditLogs          AuditLog[]
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+
+  @@index([expenseDate])
+  @@index([categoryId])
+  @@index([vendorId])
+  @@index([projectId])
+  @@index([expenseType])
+  @@index([status])
+  @@index([isRecurring])
+  @@index([expenseId])
+}
+
+model ExpenseAttachment {
+  id          Int      @id @default(autoincrement())
+  expenseId   Int
+  expense     Expense  @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+  fileName    String
+  filePath    String
+  fileType    String
+  fileSize    Int
+  description String?
+  createdAt   DateTime @default(now())
+}
+
+model Subscription {
+  id              Int              @id @default(autoincrement())
+  subscriptionId  String           @unique // SUB-2026-000001
+  vendorId        Int?
+  vendor          Vendor?          @relation(fields: [vendorId], references: [id])
+  productName     String
+  categoryId      Int?
+  category        ExpenseCategory? @relation(fields: [categoryId], references: [id])
+  cost            Decimal
+  currency        String           @default("INR")
+  billingCycle    String           @default("monthly") // monthly | yearly | quarterly | half_yearly | weekly | daily
+  startDate       DateTime
+  renewalDate     DateTime?
+  nextBillingDate DateTime?
+  autoRenewal     Boolean          @default(true)
+  paymentMethodId Int?
+  paymentMethod   PaymentMethod?   @relation(fields: [paymentMethodId], references: [id])
+  owner           String?
+  businessPurpose String?
+  status          String           @default("active") // active | trial | cancelled | expired | suspended
+  notes           String?
+  isArchived      Boolean          @default(false)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  @@index([status])
+  @@index([nextBillingDate])
+  @@index([vendorId])
+}
+
+model Employee {
+  id             Int                    @id @default(autoincrement())
+  employeeId     String                 @unique // EMP-000001
+  name           String
+  email          String?
+  phone          String?
+  role           String?
+  department     String?
+  managerName    String?
+  workLocation   String?
+  employmentType String                 @default("full_time") // full_time | part_time | contractor | freelancer | intern
+  monthlyCost    Decimal                @default(0)
+  annualCost     Decimal                @default(0)
+  annualPtoDays  Decimal                @default(18)
+  startDate      DateTime?
+  endDate        DateTime?
+  status         String                 @default("active") // active | on_leave | terminated | contractor
+  notes          String?
+  isArchived     Boolean                @default(false)
+  leaveRequests  LeaveRequest[]
+  attendanceLogs AttendanceLog[]
+  lifecycleTasks LifecycleTask[]
+  payrollBatches PayrollBatchEmployee[]
+  scheduleEvents ScheduleEvent[]
+  user            User?
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
+
+  @@index([status])
+  @@index([department])
+}
+
+model ScheduleEvent {
+  id          Int       @id @default(autoincrement())
+  eventId     String    @unique // EVT-2026-000001
+  title       String
+  description String?
+  eventType   String    @default("meeting") // meeting | availability | holiday | deadline | audit | tax | launch | personal
+  priority    String    @default("standard") // urgent | standard | informational
+  module      String    @default("schedule") // ledger | people | schedule | flow
+  startsAt    DateTime
+  endsAt      DateTime
+  timezone    String    @default("Asia/Kolkata")
+  location    String?
+  ownerName   String?
+  employeeId  Int?
+  employee    Employee? @relation(fields: [employeeId], references: [id], onDelete: SetNull)
+  projectId   Int?
+  project     Project?  @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  isAllDay    Boolean   @default(false)
+  status      String    @default("scheduled") // scheduled | complete | cancelled
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([startsAt])
+  @@index([priority])
+  @@index([eventType])
+  @@index([employeeId])
+  @@index([projectId])
+}
+
+model ScheduleMilestone {
+  id              Int      @id @default(autoincrement())
+  milestoneId     String   @unique // MIL-2026-000001
+  title           String
+  milestoneType   String   @default("project") // project | audit | tax | launch | finance | people
+  priority        String   @default("standard") // urgent | standard | informational
+  module          String   @default("schedule")
+  dueAt           DateTime
+  timezone        String   @default("Asia/Kolkata")
+  ownerDepartment String?
+  projectId       Int?
+  project         Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  status          String   @default("open") // open | complete | cancelled
+  notes           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([dueAt])
+  @@index([priority])
+  @@index([status])
+  @@index([projectId])
+}
+
+model FlowAutomationRule {
+  id            Int       @id @default(autoincrement())
+  ruleId        String    @unique // AUT-2026-000001
+  name          String
+  triggerModule String    @default("flow") // ledger | people | schedule | flow | crm
+  triggerEvent  String
+  actionModule  String    @default("schedule") // ledger | people | schedule | flow
+  actionSummary String
+  priority      String    @default("standard") // urgent | standard | informational
+  status        String    @default("active") // active | paused | archived
+  lastRunAt     DateTime?
+  notes         String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([status])
+  @@index([triggerModule])
+  @@index([priority])
+}
+
+model ForecastScenario {
+  id                     Int      @id @default(autoincrement())
+  scenarioId             String   @unique // FRC-2026-000001
+  name                   String
+  horizonMonths          Int      @default(6)
+  assumedMonthlyRevenue  Decimal  @default(0)
+  assumedMonthlyBurn     Decimal  @default(0)
+  plannedHeadcountChange Int      @default(0)
+  confidence             String   @default("medium") // low | medium | high
+  notes                  String?
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  @@index([createdAt])
+}
+
+model ExecutiveInsight {
+  id                Int      @id @default(autoincrement())
+  insightId         String   @unique // INS-2026-000001
+  title             String
+  severity          String   @default("standard") // urgent | standard | informational
+  sourceModule      String   @default("flow") // ledger | people | schedule | flow
+  rootCause         String
+  recommendedAction String
+  status            String   @default("open") // open | acknowledged | resolved
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([severity])
+  @@index([status])
+  @@index([sourceModule])
+}
+
+model LeaveRequest {
+  id              Int      @id @default(autoincrement())
+  requestId       String   @unique // PTO-2026-000001
+  employeeId      Int
+  employee        Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  leaveType       String   @default("paid_time_off") // paid_time_off | sick | unpaid | parental | bereavement | comp_off
+  startDate       DateTime
+  endDate         DateTime
+  days            Decimal  @default(1)
+  status          String   @default("pending") // pending | approved | rejected | cancelled
+  reason          String?
+  approverName    String?
+  blackoutChecked Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([employeeId])
+  @@index([status])
+  @@index([startDate])
+}
+
+model AttendanceLog {
+  id             Int       @id @default(autoincrement())
+  employeeId     Int
+  employee       Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  workDate       DateTime
+  checkIn        DateTime?
+  checkOut       DateTime?
+  workMode       String    @default("office") // office | remote | hybrid | field
+  geoFenceStatus String    @default("not_required") // verified | outside_zone | not_required | missing
+  regularHours   Decimal   @default(0)
+  overtimeHours  Decimal   @default(0)
+  status         String    @default("present") // present | absent | leave | holiday | lwop
+  notes          String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@unique([employeeId, workDate])
+  @@index([workDate])
+  @@index([status])
+}
+
+model LifecycleTask {
+  id          Int       @id @default(autoincrement())
+  taskId      String    @unique // HR-2026-000001
+  employeeId  Int?
+  employee    Employee? @relation(fields: [employeeId], references: [id], onDelete: SetNull)
+  taskType    String    @default("onboarding") // onboarding | offboarding
+  ownerTeam   String    @default("HR") // HR | IT | Finance | Manager
+  title       String
+  dueDate     DateTime?
+  status      String    @default("open") // open | in_progress | complete | blocked
+  checklist   String?
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([employeeId])
+  @@index([taskType])
+  @@index([status])
+}
+
+model PayrollBatch {
+  id               Int                    @id @default(autoincrement())
+  batchId          String                 @unique // PAY-2026-000001
+  periodStart      DateTime
+  periodEnd        DateTime
+  status           String                 @default("draft") // draft | locked | exported
+  employeeCount    Int                    @default(0)
+  grossPay         Decimal                @default(0)
+  approvedExpenses Decimal                @default(0)
+  bonuses          Decimal                @default(0)
+  deductions       Decimal                @default(0)
+  netPay           Decimal                @default(0)
+  notes            String?
+  employees        PayrollBatchEmployee[]
+  createdAt        DateTime               @default(now())
+  updatedAt        DateTime               @updatedAt
+
+  @@index([periodStart])
+  @@index([status])
+}
+
+model PayrollBatchEmployee {
+  id                    Int          @id @default(autoincrement())
+  payrollBatchId        Int
+  payrollBatch          PayrollBatch @relation(fields: [payrollBatchId], references: [id], onDelete: Cascade)
+  employeeId            Int
+  employee              Employee     @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  basePay               Decimal      @default(0)
+  expenseReimbursements Decimal      @default(0)
+  bonus                 Decimal      @default(0)
+  deductions            Decimal      @default(0)
+  netPay                Decimal      @default(0)
+
+  @@unique([payrollBatchId, employeeId])
+  @@index([employeeId])
+}
+
+model Asset {
+  id            Int       @id @default(autoincrement())
+  assetId       String    @unique // AST-2026-000001
+  name          String
+  assetType     String    @default("computer") // computer | gpu | server | monitor | networking | storage | peripheral | accessory | other
+  purchaseDate  DateTime?
+  purchaseCost  Decimal   @default(0)
+  vendorId      Int?
+  vendor        Vendor?   @relation(fields: [vendorId], references: [id])
+  serialNumber  String?
+  warrantyStart DateTime?
+  warrantyEnd   DateTime?
+  assignedTo    String?
+  location      String?
+  status        String    @default("in_stock") // in_stock | assigned | under_repair | retired | sold | lost
+  notes         String?
+  isArchived    Boolean   @default(false)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([status])
+  @@index([assetType])
+}
+
+model Budget {
+  id               Int              @id @default(autoincrement())
+  name             String
+  categoryId       Int?
+  category         ExpenseCategory? @relation(fields: [categoryId], references: [id])
+  costCenterId     Int?
+  costCenter       CostCenter?      @relation(fields: [costCenterId], references: [id])
+  projectId        Int?
+  project          Project?         @relation(fields: [projectId], references: [id])
+  amount           Decimal
+  period           String           @default("monthly") // monthly | quarterly | yearly | custom
+  startDate        DateTime
+  endDate          DateTime?
+  warningThreshold Decimal          @default(80)
+  isActive         Boolean          @default(true)
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+}
+
+model AuditLog {
+  id            Int      @id @default(autoincrement())
+  action        String // create | update | delete | import | export | backup | restore | login | logout
+  entityType    String // expense | vendor | subscription | employee | asset | settings | backup
+  entityId      String?
+  expenseId     Int?
+  expense       Expense? @relation(fields: [expenseId], references: [id])
+  userId        Int?
+  user          User?    @relation(fields: [userId], references: [id])
+  previousValue String?
+  newValue      String?
+  ipAddress     String?
+  userAgent     String?
+  createdAt     DateTime @default(now())
+
+  @@index([action])
+  @@index([entityType])
+  @@index([createdAt])
+}
+
+model BackupRecord {
+  id           Int      @id @default(autoincrement())
+  fileName     String
+  filePath     String
+  fileSize     Int
+  expenseCount Int
+  isAuto       Boolean  @default(false)
+  notes        String?
+  createdAt    DateTime @default(now())
+}
