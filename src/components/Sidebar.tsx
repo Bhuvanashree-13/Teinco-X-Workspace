@@ -5,6 +5,11 @@ import {
 } from 'lucide-react'
 import { useRole } from '../context/RoleContext'
 
+type SidebarProps = {
+  className?: string
+  onNavigate?: () => void
+}
+
 const navItems = [
   { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/expenses', icon: Receipt, label: 'Expenses' },
@@ -18,14 +23,14 @@ const navItems = [
   { to: '/settings', icon: Settings, label: 'Settings' },
 ]
 
-export default function Sidebar() {
+export default function Sidebar({ className = '', onNavigate }: SidebarProps) {
   const { role, isAdmin } = useRole()
   const visibleNavItems = isAdmin
     ? navItems
     : navItems.filter(item => ['/', '/subscriptions', '/people', '/payslips', '/schedule'].includes(item.to))
 
   return (
-    <aside className="w-[272px] bg-[#1E3A8A] text-white flex flex-col shrink-0 shadow-[1px_0_3px_rgba(17,24,39,0.12)]">
+    <aside className={`w-[272px] max-w-[86vw] bg-[#1E3A8A] text-white flex flex-col shrink-0 shadow-[1px_0_3px_rgba(17,24,39,0.12)] ${className}`}>
       <div className="px-5 py-5 border-b border-white/10">
         <div className="flex items-center gap-3 min-w-[140px]">
           <div className="relative w-8 h-8 rounded-lg bg-white/10 border border-white/20 grid place-items-center shadow-[0_1px_3px_rgba(0,0,0,0.2)]" aria-label="Teinco-X mark">
@@ -54,6 +59,7 @@ export default function Sidebar() {
           <NavLink
             key={item.to}
             to={item.to}
+            onClick={onNavigate}
             className={({ isActive }) =>
               `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
                 isActive

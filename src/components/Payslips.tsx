@@ -107,7 +107,7 @@ function PayslipTemplate({ payslip, isPlaceholder = false }: { payslip: Payslip;
   const daysInMonth = new Date(periodStart.getFullYear(), periodStart.getMonth() + 1, 0).getDate()
 
   return (
-    <div className="payslip-print-surface rounded-lg border border-slate-300 bg-white p-6 text-slate-950 shadow-sm">
+    <div className="payslip-print-surface min-w-[720px] rounded-lg border border-slate-300 bg-white p-6 text-slate-950 shadow-sm">
       <div className="border-b-4 border-[#1E3A8A] pb-4">
         <div className="flex items-start justify-between gap-4">
           <div className="flex items-center gap-3">
@@ -277,7 +277,7 @@ export default function Payslips() {
           </div>
         </aside>
 
-        <section>
+        <section className="overflow-x-auto pb-2">
           {!hasRealPayslip && (
             <div className="no-print mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
               Showing the blank Teinco-X payslip template. It will fill with real employee payroll data after a payroll batch is created.
