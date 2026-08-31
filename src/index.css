@@ -83,13 +83,26 @@
 @layer components {
   .finance-value { font-variant-numeric: tabular-nums; letter-spacing: 0; }
   .brand-card { @apply rounded-lg border border-slate-200 bg-white shadow-[0_1px_3px_rgba(17,24,39,0.05)]; }
-  .brand-heading { @apply text-[32px] font-semibold leading-tight text-[#1E3A8A] dark:text-white; }
+  .brand-heading { @apply text-2xl font-semibold leading-tight text-[#1E3A8A] dark:text-white sm:text-[32px]; }
   .brand-section-heading { @apply text-xl font-medium text-[#1E3A8A] dark:text-white; }
   .brand-label { @apply text-sm font-semibold text-[#6B7280] dark:text-slate-300; }
   .brand-copy { @apply text-sm text-[#111827] dark:text-slate-100; }
   .brand-caption { @apply text-xs text-[#6B7280] dark:text-slate-400; }
   .brand-primary-button { @apply rounded-lg bg-[#1E3A8A] px-4 py-2 text-sm font-medium text-white shadow-[0_1px_3px_rgba(17,24,39,0.05)] transition-colors hover:bg-[#1B3378] disabled:opacity-50; }
   .brand-secondary-button { @apply rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-[#111827] shadow-[0_1px_3px_rgba(17,24,39,0.05)] transition-colors hover:bg-[#EFF6FF] dark:border-gray-700 dark:bg-gray-800 dark:text-white; }
+  .mobile-page-header { @apply flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between; }
+  .mobile-action-stack { @apply flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center sm:gap-3; }
+  .mobile-action-stack > button { @apply flex w-full items-center justify-center gap-2 sm:w-auto; }
+  .mobile-dialog-overlay { @apply fixed inset-0 z-50 flex items-end justify-center bg-gray-950/50 p-0 sm:items-center sm:p-4; }
+  .mobile-dialog-panel { @apply flex max-h-[92vh] w-full flex-col overflow-hidden rounded-t-2xl bg-white shadow-2xl dark:bg-gray-800 sm:max-w-2xl sm:rounded-lg; }
+  .mobile-dialog-panel-lg { @apply sm:max-w-3xl; }
+  .mobile-dialog-header { @apply flex items-start justify-between gap-3 border-b p-4 dark:border-gray-700 sm:p-5; }
+  .mobile-dialog-close { @apply grid h-10 w-10 shrink-0 place-items-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 dark:border-gray-700 dark:text-slate-200 dark:hover:bg-gray-700; }
+  .mobile-dialog-form { @apply grid flex-1 grid-cols-1 gap-4 overflow-y-auto p-4 pb-6 sm:grid-cols-2 sm:p-5; }
+  .mobile-form-actions { @apply flex flex-col-reverse gap-2 border-t pt-4 sm:col-span-2 sm:flex-row sm:justify-end sm:gap-3; }
+  .mobile-form-actions > button { @apply flex w-full items-center justify-center sm:w-auto; }
+  .mobile-tab-strip { @apply -mx-4 flex gap-2 overflow-x-auto border-b border-slate-200 px-4 dark:border-gray-700 sm:mx-0 sm:px-0; }
+  .mobile-tab-strip > button { @apply shrink-0; }
 }
 
 @layer utilities {

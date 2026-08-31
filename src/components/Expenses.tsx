@@ -65,16 +65,16 @@ export default function Expenses() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="mobile-page-header">
         <div>
           <h2 className="brand-heading">Expenses</h2>
           <p className="brand-caption mt-1">Manage and track all company expenses</p>
         </div>
-        <div className="flex gap-3">
-          <button onClick={exportCsv} className="brand-secondary-button flex items-center gap-2">
+        <div className="mobile-action-stack">
+          <button onClick={exportCsv} className="brand-secondary-button">
             <Download className="w-4 h-4" /> Export
           </button>
-          <button onClick={() => setShowForm(true)} className="brand-primary-button flex items-center gap-2">
+          <button onClick={() => setShowForm(true)} className="brand-primary-button">
             <Plus className="w-4 h-4" /> Add Expense
           </button>
         </div>
@@ -83,8 +83,8 @@ export default function Expenses() {
       {message && <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">{message}</div>}
 
       <div className="brand-card overflow-hidden dark:border-gray-700 dark:bg-gray-800">
-        <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex flex-col sm:flex-row gap-4">
-          <div className="relative flex-1 max-w-md">
+        <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex flex-col sm:flex-row gap-3 sm:gap-4">
+          <div className="relative w-full flex-1 sm:max-w-md">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
             <input
               type="text"
@@ -94,9 +94,9 @@ export default function Expenses() {
               className="w-full pl-10 pr-4 py-2 border border-gray-200 dark:border-gray-600 rounded-lg bg-transparent text-sm focus:outline-none focus:ring-2 focus:ring-slate-800 dark:text-white"
             />
           </div>
-          <div className="relative">
+          <div className="relative w-full sm:w-auto">
             <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <select value={expenseType} onChange={e => { setExpenseType(e.target.value); setPage(1) }} className="pl-9 pr-8 py-2 border border-gray-200 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 dark:text-white">
+            <select value={expenseType} onChange={e => { setExpenseType(e.target.value); setPage(1) }} className="w-full pl-9 pr-8 py-2 border border-gray-200 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 dark:text-white">
               <option value="">All expense types</option><option value="one_time">One time</option><option value="recurring">Recurring</option><option value="salary">Salary</option><option value="reimbursement">Reimbursement</option><option value="capex">Capital expense</option><option value="opex">Operating expense</option>
             </select>
           </div>
@@ -110,7 +110,7 @@ export default function Expenses() {
         ) : (
           <>
             <div className="overflow-x-auto">
-              <table className="w-full text-sm text-left">
+              <table className="min-w-[860px] w-full text-sm text-left">
                 <thead className="bg-gray-50 dark:bg-gray-700/50 text-gray-500 dark:text-gray-400">
                   <tr>
                     <th className="px-4 py-3 font-medium whitespace-nowrap">ID</th>
@@ -160,7 +160,7 @@ export default function Expenses() {
                 <p className="text-sm text-gray-400 mt-1">Try adjusting your search or filters</p>
               </div>
             )}
-            <div className="p-4 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between">
+            <div className="p-4 border-t border-gray-200 dark:border-gray-700 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <p className="text-sm text-gray-500">Showing {expenses.length} of {total} expenses</p>
               <div className="flex items-center gap-2">
                 <button 
@@ -185,10 +185,10 @@ export default function Expenses() {
       </div>
 
       {showForm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-950/50 p-4" onMouseDown={() => setShowForm(false)}>
-          <div className="w-full max-w-2xl rounded-lg bg-white dark:bg-gray-800 shadow-2xl" onMouseDown={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between border-b p-5 dark:border-gray-700"><div><h3 className="text-lg font-semibold dark:text-white">Record expense</h3><p className="text-sm text-gray-500">Amounts are stored in the company ledger.</p></div><button onClick={() => setShowForm(false)}><X className="h-5 w-5" /></button></div>
-            <form onSubmit={submitExpense} className="grid grid-cols-1 gap-4 p-5 sm:grid-cols-2">
+        <div className="mobile-dialog-overlay" onMouseDown={() => setShowForm(false)}>
+          <div className="mobile-dialog-panel" onMouseDown={e => e.stopPropagation()}>
+            <div className="mobile-dialog-header"><div><h3 className="text-lg font-semibold dark:text-white">Record expense</h3><p className="text-sm text-gray-500">Amounts are stored in the company ledger.</p></div><button type="button" onClick={() => setShowForm(false)} className="mobile-dialog-close" aria-label="Close expense form"><X className="h-5 w-5" /></button></div>
+            <form onSubmit={submitExpense} className="mobile-dialog-form">
               <label className="text-sm dark:text-gray-200">Date<input required type="date" value={form.expenseDate} onChange={e => setForm({...form, expenseDate:e.target.value})} className="mt-1 w-full rounded-lg border p-2.5 dark:border-gray-600 dark:bg-gray-900" /></label>
               <label className="text-sm dark:text-gray-200">Vendor<select value={form.vendorId} onChange={e => setForm({...form, vendorId:e.target.value})} className="mt-1 w-full rounded-lg border p-2.5 dark:border-gray-600 dark:bg-gray-900"><option value="">No vendor</option>{(vendors || []).map(v => <option key={v.id} value={v.id}>{v.name}</option>)}</select></label>
               <label className="text-sm sm:col-span-2 dark:text-gray-200">Description<input required value={form.description} onChange={e => setForm({...form, description:e.target.value})} placeholder="What was purchased?" className="mt-1 w-full rounded-lg border p-2.5 dark:border-gray-600 dark:bg-gray-900" /></label>
@@ -200,7 +200,7 @@ export default function Expenses() {
               <label className="text-sm dark:text-gray-200">Business purpose<input value={form.businessPurpose} onChange={e => setForm({...form, businessPurpose:e.target.value})} className="mt-1 w-full rounded-lg border p-2.5 dark:border-gray-600 dark:bg-gray-900" /></label>
               <label className="flex items-center gap-2 text-sm dark:text-gray-200"><input type="checkbox" checked={form.taxDeductible} onChange={e => setForm({...form, taxDeductible:e.target.checked})} /> Tax deductible</label>
               <div className="text-right"><p className="text-xs text-gray-500">Total payable</p><p className="text-xl font-bold dark:text-white">{formatCurrency(totalAmount)}</p></div>
-              <div className="flex justify-end gap-3 border-t pt-4 sm:col-span-2 dark:border-gray-700"><button type="button" onClick={() => setShowForm(false)} className="rounded-lg border px-4 py-2 text-sm dark:border-gray-600">Cancel</button><button disabled={saving} className="brand-primary-button">{saving ? 'Saving…' : 'Save expense'}</button></div>
+              <div className="mobile-form-actions dark:border-gray-700"><button type="button" onClick={() => setShowForm(false)} className="rounded-lg border px-4 py-2 text-sm dark:border-gray-600">Cancel</button><button disabled={saving} className="brand-primary-button">{saving ? 'Saving…' : 'Save expense'}</button></div>
             </form>
           </div>
         </div>

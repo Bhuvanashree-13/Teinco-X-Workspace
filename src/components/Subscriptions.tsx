@@ -84,15 +84,17 @@ export default function Subscriptions() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="mobile-page-header">
         <div>
           <h2 className="brand-heading">Subscriptions</h2>
           <p className="brand-caption mt-1">Track recurring software and service commitments</p>
         </div>
         {isAdmin && (
-          <button type="button" onClick={() => setShowForm(true)} className="brand-primary-button flex items-center gap-2">
+          <div className="mobile-action-stack">
+          <button type="button" onClick={() => setShowForm(true)} className="brand-primary-button">
             <Plus className="w-4 h-4" /> Add Subscription
           </button>
+          </div>
         )}
       </div>
 
@@ -103,7 +105,7 @@ export default function Subscriptions() {
         </div>
       )}
 
-      <div className="flex gap-2">
+      <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:px-0">
         {['active', 'all', 'trial', 'cancelled'].map(f => (
           <button
             key={f}
@@ -127,7 +129,7 @@ export default function Subscriptions() {
       ) : (
         <div className="brand-card overflow-hidden dark:border-gray-700 dark:bg-gray-800">
           <div className="overflow-x-auto">
-            <table className="w-full text-sm text-left">
+            <table className="min-w-[760px] w-full text-sm text-left">
               <thead className="bg-gray-50 dark:bg-gray-700/50 text-gray-500 dark:text-gray-400">
                 <tr>
                   <th className="px-4 py-3 font-medium">Subscription</th>
@@ -182,16 +184,16 @@ export default function Subscriptions() {
       )}
 
       {isAdmin && showForm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-950/50 p-4" onMouseDown={() => setShowForm(false)}>
-          <div className="w-full max-w-2xl rounded-lg bg-white shadow-2xl dark:bg-gray-800" onMouseDown={event => event.stopPropagation()}>
-            <div className="flex items-center justify-between border-b p-5 dark:border-gray-700">
+        <div className="mobile-dialog-overlay" onMouseDown={() => setShowForm(false)}>
+          <div className="mobile-dialog-panel" onMouseDown={event => event.stopPropagation()}>
+            <div className="mobile-dialog-header">
               <div>
                 <h3 className="text-lg font-semibold text-[#1E3A8A] dark:text-white">Add subscription</h3>
                 <p className="text-sm text-gray-500">Track recurring tools, services, and renewal commitments.</p>
               </div>
-              <button type="button" onClick={() => setShowForm(false)}><X className="h-5 w-5" /></button>
+              <button type="button" onClick={() => setShowForm(false)} className="mobile-dialog-close" aria-label="Close subscription form"><X className="h-5 w-5" /></button>
             </div>
-            <form onSubmit={submitSubscription} className="grid grid-cols-1 gap-4 p-5 sm:grid-cols-2">
+            <form onSubmit={submitSubscription} className="mobile-dialog-form">
               <label className="text-sm dark:text-gray-200">Subscription name<input required value={form.productName} onChange={event => setForm({ ...form, productName: event.target.value })} placeholder="e.g. Accounting software" className="mt-1 w-full rounded-lg border p-2.5 dark:border-gray-600 dark:bg-gray-900" /></label>
               <label className="text-sm dark:text-gray-200">Vendor<select value={form.vendorId} onChange={event => setForm({ ...form, vendorId: event.target.value })} className="mt-1 w-full rounded-lg border p-2.5 dark:border-gray-600 dark:bg-gray-900"><option value="">No vendor</option>{(vendors || []).map(vendor => <option key={vendor.id} value={vendor.id}>{vendor.name}</option>)}</select></label>
               <label className="text-sm dark:text-gray-200">Category<select value={form.categoryId} onChange={event => setForm({ ...form, categoryId: event.target.value })} className="mt-1 w-full rounded-lg border p-2.5 dark:border-gray-600 dark:bg-gray-900"><option value="">No category</option>{(categories || []).filter(category => !category.parentId).map(category => <option key={category.id} value={category.id}>{category.name}</option>)}</select></label>
@@ -205,7 +207,7 @@ export default function Subscriptions() {
               <label className="text-sm sm:col-span-2 dark:text-gray-200">Business purpose<input value={form.businessPurpose} onChange={event => setForm({ ...form, businessPurpose: event.target.value })} className="mt-1 w-full rounded-lg border p-2.5 dark:border-gray-600 dark:bg-gray-900" /></label>
               <label className="text-sm sm:col-span-2 dark:text-gray-200">Notes<textarea value={form.notes} onChange={event => setForm({ ...form, notes: event.target.value })} className="mt-1 h-20 w-full rounded-lg border p-2.5 dark:border-gray-600 dark:bg-gray-900" /></label>
               <label className="flex items-center gap-2 text-sm dark:text-gray-200"><input type="checkbox" checked={form.autoRenewal} onChange={event => setForm({ ...form, autoRenewal: event.target.checked })} /> Auto-renewal enabled</label>
-              <div className="flex justify-end gap-3 border-t pt-4 sm:col-span-2 dark:border-gray-700">
+              <div className="mobile-form-actions dark:border-gray-700">
                 <button type="button" onClick={() => setShowForm(false)} className="rounded-lg border px-4 py-2 text-sm dark:border-gray-600">Cancel</button>
                 <button disabled={saving} className="brand-primary-button">{saving ? 'Saving…' : 'Save subscription'}</button>
               </div>

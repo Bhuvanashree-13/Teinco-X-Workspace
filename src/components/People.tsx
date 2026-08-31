@@ -569,10 +569,10 @@ export default function People() {
           )}
         </div>
         {isAdmin && (
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="mobile-action-stack">
             <button
               onClick={() => setShowCompensation(value => !value)}
-              className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-[#1E3A8A] shadow-sm hover:bg-slate-50 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+              className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-[#1E3A8A] shadow-sm hover:bg-slate-50 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
               title="Toggle compensation visibility for authorized HR users"
             >
               {showCompensation ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -580,7 +580,7 @@ export default function People() {
             </button>
             <button
               onClick={() => setEmployeeFormOpen(true)}
-              className="flex items-center gap-2 rounded-lg bg-[#1E3A8A] px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-slate-800"
+              className="rounded-lg bg-[#1E3A8A] px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-slate-800"
             >
               <UserPlus className="h-4 w-4" />
               Add employee
@@ -602,7 +602,7 @@ export default function People() {
         <MetricCard icon={ShieldCheck} label="Monthly people cost" value={canViewCompensation ? formatCurrency(summary?.monthlyPeopleCost || 0) : 'Restricted'} caption={isAdmin ? 'Visible to HR and direct managers' : 'Admin only'} />
       </div>
 
-      <div className="flex flex-wrap gap-2 border-b border-slate-200 dark:border-gray-700">
+      <div className="mobile-tab-strip">
         {visibleTabs.map(tab => (
           <button
             key={tab.id}
@@ -1109,16 +1109,16 @@ export default function People() {
       </div>
 
       {employeeFormOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-950/50 p-4" onMouseDown={() => setEmployeeFormOpen(false)}>
-          <div className="w-full max-w-3xl rounded-lg bg-white shadow-2xl dark:bg-gray-800" onMouseDown={event => event.stopPropagation()}>
-            <div className="flex items-center justify-between border-b border-slate-200 p-5 dark:border-gray-700">
+        <div className="mobile-dialog-overlay" onMouseDown={() => setEmployeeFormOpen(false)}>
+          <div className="mobile-dialog-panel mobile-dialog-panel-lg" onMouseDown={event => event.stopPropagation()}>
+            <div className="mobile-dialog-header">
               <div>
                 <h3 className="text-lg font-semibold text-[#1E3A8A] dark:text-white">Create employee profile</h3>
                 <p className="text-sm text-slate-500">Saving this profile also creates the employee login user.</p>
               </div>
-              <button onClick={() => setEmployeeFormOpen(false)} className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm dark:border-gray-700">Close</button>
+              <button type="button" onClick={() => setEmployeeFormOpen(false)} className="mobile-dialog-close" aria-label="Close employee form">Close</button>
             </div>
-            <form onSubmit={submitEmployee} className="grid gap-4 p-5 sm:grid-cols-2">
+            <form onSubmit={submitEmployee} className="mobile-dialog-form">
               <label className="text-sm font-medium text-slate-700 dark:text-slate-200">Full name<input required value={employeeForm.name} onChange={event => setEmployeeForm({ ...employeeForm, name: event.target.value })} className="mt-1 w-full rounded-lg border p-2.5 text-sm dark:border-gray-700 dark:bg-gray-900" /></label>
               <label className="text-sm font-medium text-slate-700 dark:text-slate-200">Email<input required type="email" value={employeeForm.email} onChange={event => setEmployeeForm({ ...employeeForm, email: event.target.value })} className="mt-1 w-full rounded-lg border p-2.5 text-sm dark:border-gray-700 dark:bg-gray-900" /></label>
               <label className="text-sm font-medium text-slate-700 dark:text-slate-200">Role<input value={employeeForm.role} onChange={event => setEmployeeForm({ ...employeeForm, role: event.target.value })} className="mt-1 w-full rounded-lg border p-2.5 text-sm dark:border-gray-700 dark:bg-gray-900" /></label>
@@ -1129,7 +1129,7 @@ export default function People() {
               <label className="text-sm font-medium text-slate-700 dark:text-slate-200">Monthly compensation<input min="0" step="0.01" type="number" value={employeeForm.monthlyCost} onChange={event => setEmployeeForm({ ...employeeForm, monthlyCost: event.target.value })} className="mt-1 w-full rounded-lg border p-2.5 text-sm dark:border-gray-700 dark:bg-gray-900" /></label>
               <label className="text-sm font-medium text-slate-700 dark:text-slate-200">Annual PTO days<input min="0" step="0.5" type="number" value={employeeForm.annualPtoDays} onChange={event => setEmployeeForm({ ...employeeForm, annualPtoDays: event.target.value })} className="mt-1 w-full rounded-lg border p-2.5 text-sm dark:border-gray-700 dark:bg-gray-900" /></label>
               <label className="text-sm font-medium text-slate-700 dark:text-slate-200">Start date<input type="date" value={employeeForm.startDate} onChange={event => setEmployeeForm({ ...employeeForm, startDate: event.target.value })} className="mt-1 w-full rounded-lg border p-2.5 text-sm dark:border-gray-700 dark:bg-gray-900" /></label>
-              <div className="flex justify-end gap-3 border-t border-slate-200 pt-4 sm:col-span-2 dark:border-gray-700">
+              <div className="mobile-form-actions border-slate-200 dark:border-gray-700">
                 <button type="button" onClick={() => setEmployeeFormOpen(false)} className="rounded-lg border border-slate-200 px-4 py-2 text-sm dark:border-gray-700">Cancel</button>
                 <button disabled={saving === 'employee'} className="rounded-lg bg-[#1E3A8A] px-4 py-2 text-sm font-medium text-white disabled:opacity-50">{saving === 'employee' ? 'Saving...' : 'Save employee'}</button>
               </div>

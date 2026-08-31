@@ -61,19 +61,21 @@ export default function Vendors() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="mobile-page-header">
         <div>
           <h2 className="brand-heading">Vendors</h2>
           <p className="brand-caption mt-1">Track vendor relationships and spending</p>
         </div>
-        <button type="button" onClick={() => setShowForm(true)} className="brand-primary-button flex items-center gap-2">
+        <div className="mobile-action-stack">
+        <button type="button" onClick={() => setShowForm(true)} className="brand-primary-button">
           <Plus className="w-4 h-4" /> Add Vendor
         </button>
+        </div>
       </div>
 
       {message && <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">{message}</div>}
 
-      <div className="relative max-w-md">
+      <div className="relative w-full sm:max-w-md">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
         <input
           type="text"
@@ -140,16 +142,16 @@ export default function Vendors() {
       )}
 
       {showForm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-950/50 p-4" onMouseDown={() => setShowForm(false)}>
-          <div className="w-full max-w-2xl rounded-lg bg-white shadow-2xl dark:bg-gray-800" onMouseDown={event => event.stopPropagation()}>
-            <div className="flex items-center justify-between border-b p-5 dark:border-gray-700">
+        <div className="mobile-dialog-overlay" onMouseDown={() => setShowForm(false)}>
+          <div className="mobile-dialog-panel" onMouseDown={event => event.stopPropagation()}>
+            <div className="mobile-dialog-header">
               <div>
                 <h3 className="text-lg font-semibold text-[#1E3A8A] dark:text-white">Add vendor</h3>
                 <p className="text-sm text-gray-500">Create a supplier record for expenses and subscriptions.</p>
               </div>
-              <button type="button" onClick={() => setShowForm(false)}><X className="h-5 w-5" /></button>
+              <button type="button" onClick={() => setShowForm(false)} className="mobile-dialog-close" aria-label="Close vendor form"><X className="h-5 w-5" /></button>
             </div>
-            <form onSubmit={submitVendor} className="grid grid-cols-1 gap-4 p-5 sm:grid-cols-2">
+            <form onSubmit={submitVendor} className="mobile-dialog-form">
               <label className="text-sm dark:text-gray-200">Vendor name<input required value={form.name} onChange={event => setForm({ ...form, name: event.target.value })} className="mt-1 w-full rounded-lg border p-2.5 dark:border-gray-600 dark:bg-gray-900" /></label>
               <label className="text-sm dark:text-gray-200">Type<select value={form.type} onChange={event => setForm({ ...form, type: event.target.value })} className="mt-1 w-full rounded-lg border p-2.5 dark:border-gray-600 dark:bg-gray-900"><option value="service">Service</option><option value="software">Software</option><option value="cloud">Cloud</option><option value="hardware">Hardware</option><option value="other">Other</option></select></label>
               <label className="text-sm dark:text-gray-200">Contact name<input value={form.contactName} onChange={event => setForm({ ...form, contactName: event.target.value })} className="mt-1 w-full rounded-lg border p-2.5 dark:border-gray-600 dark:bg-gray-900" /></label>
@@ -163,7 +165,7 @@ export default function Vendors() {
               <label className="text-sm dark:text-gray-200">City<input value={form.city} onChange={event => setForm({ ...form, city: event.target.value })} className="mt-1 w-full rounded-lg border p-2.5 dark:border-gray-600 dark:bg-gray-900" /></label>
               <label className="text-sm dark:text-gray-200">State<input value={form.state} onChange={event => setForm({ ...form, state: event.target.value })} className="mt-1 w-full rounded-lg border p-2.5 dark:border-gray-600 dark:bg-gray-900" /></label>
               <label className="text-sm sm:col-span-2 dark:text-gray-200">Notes<textarea value={form.notes} onChange={event => setForm({ ...form, notes: event.target.value })} className="mt-1 h-20 w-full rounded-lg border p-2.5 dark:border-gray-600 dark:bg-gray-900" /></label>
-              <div className="flex justify-end gap-3 border-t pt-4 sm:col-span-2 dark:border-gray-700">
+              <div className="mobile-form-actions dark:border-gray-700">
                 <button type="button" onClick={() => setShowForm(false)} className="rounded-lg border px-4 py-2 text-sm dark:border-gray-600">Cancel</button>
                 <button disabled={saving} className="brand-primary-button">{saving ? 'Saving…' : 'Save vendor'}</button>
               </div>
