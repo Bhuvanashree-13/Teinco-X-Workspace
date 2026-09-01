@@ -32,17 +32,8 @@ export default function Sidebar({ className = '', onNavigate }: SidebarProps) {
   return (
     <aside className={`w-[272px] max-w-[86vw] bg-[#1E3A8A] text-white flex flex-col shrink-0 shadow-[1px_0_3px_rgba(17,24,39,0.12)] ${className}`}>
       <div className="px-5 py-5 border-b border-white/10">
-        <div className="flex items-center gap-3 min-w-[140px]">
-          <div className="relative w-8 h-8 rounded-lg bg-white/10 border border-white/20 grid place-items-center shadow-[0_1px_3px_rgba(0,0,0,0.2)]" aria-label="Teinco-X mark">
-            <span className="absolute w-4 h-[2px] bg-white rotate-45 rounded-full" />
-            <span className="absolute w-4 h-[2px] bg-white -rotate-45 rounded-full" />
-            <span className="absolute top-[6px] right-[6px] w-1.5 h-1.5 rounded-full bg-[#60A5FA] ring-2 ring-[#1E3A8A]" />
-            <span className="absolute bottom-[6px] left-[6px] w-1.5 h-1.5 rounded-full bg-[#10B981] ring-2 ring-[#1E3A8A]" />
-          </div>
-          <div className="leading-tight">
-            <h1 className="font-heading text-[15px] font-semibold text-white">Teinco-X</h1>
-            <p className="text-[11px] font-medium tracking-[0.08em] uppercase text-white/80">Workspace</p>
-          </div>
+        <div className="flex min-h-8 items-center min-w-[140px]">
+          <img src="/teinco-logo.png" alt="Teinco.ai" className="h-10 w-auto object-contain" />
         </div>
       </div>
 

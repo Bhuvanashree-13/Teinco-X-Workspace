@@ -111,12 +111,7 @@ function PayslipTemplate({ payslip, isPlaceholder = false }: { payslip: Payslip;
       <div className="border-b-4 border-[#1E3A8A] pb-4">
         <div className="flex items-start justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="relative grid h-11 w-11 place-items-center rounded-lg bg-[#1E3A8A] text-white">
-              <span className="absolute h-0.5 w-6 rotate-45 rounded-full bg-white" />
-              <span className="absolute h-0.5 w-6 -rotate-45 rounded-full bg-white" />
-              <span className="absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-[#60A5FA]" />
-              <span className="absolute bottom-2 left-2 h-1.5 w-1.5 rounded-full bg-[#10B981]" />
-            </div>
+            <img src="/teinco-logo.png" alt="Teinco.ai" className="h-14 w-auto object-contain" />
             <div>
               <h2 className="text-xl font-bold text-[#1E3A8A]">Teinco-X Workspace</h2>
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Employee Pay Slip</p>
