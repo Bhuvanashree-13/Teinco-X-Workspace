@@ -272,6 +272,9 @@ This app is ready to deploy as a single Railway service.
 2. In Railway, click **New Project → Deploy from GitHub Repo** and select this repository.
 3. Add a Railway **MySQL** database to the same project.
 4. Open the app service → **Variables** and add/reference the MySQL connection URL privately. Railway MySQL provides `MYSQL_URL`; the app also accepts it as `DATABASE_URL`.
+   - Use the full connection URL that starts with `mysql://`.
+   - Do not set `DATABASE_URL` to only a host name or internal domain.
+   - If Railway gives separate values instead, the app can build the URL from `MYSQLHOST`, `MYSQLPORT`, `MYSQLUSER`, `MYSQLPASSWORD`, and `MYSQLDATABASE`.
 5. Add the remaining required service variables privately in Railway. Keep all account details out of README files, screenshots, deployment notes, and public issue trackers.
 
 ```bash

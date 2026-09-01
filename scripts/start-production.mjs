@@ -1,14 +1,13 @@
 import { spawnSync } from 'node:child_process'
 import path from 'node:path'
+import { applyDatabaseUrl } from './database-url.mjs'
 
-const configuredDatabaseUrl = (process.env.MYSQL_URL || process.env.DATABASE_URL || '').trim()
+const configuredDatabaseUrl = applyDatabaseUrl()
 
 if (!configuredDatabaseUrl) {
-  console.error('A MySQL connection URL is required. Add DATABASE_URL or MYSQL_URL from Railway MySQL to the app service.')
+  console.error('A valid MySQL connection URL is required. Add MYSQL_URL from Railway MySQL to the app service, or provide MYSQLHOST, MYSQLPORT, MYSQLUSER, MYSQLPASSWORD, and MYSQLDATABASE.')
   process.exit(1)
 }
-
-process.env.DATABASE_URL = configuredDatabaseUrl
 
 const prismaCliPath = path.resolve(process.cwd(), 'node_modules/prisma/build/index.js')
 const dbPush = spawnSync(process.execPath, [prismaCliPath, 'db', 'push', '--skip-generate'], {
