@@ -1,7 +1,7 @@
 import { NavLink } from 'react-router-dom'
 import { 
   LayoutDashboard, Receipt, Store, Calendar, CalendarDays,
-  BarChart3, Settings, Users, Network, ChevronDown, FileText
+  BarChart3, Settings, Users, Network, ChevronDown, FileText, Landmark
 } from 'lucide-react'
 import { useRole } from '../context/RoleContext'
 
@@ -13,6 +13,7 @@ type SidebarProps = {
 const navItems = [
   { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/expenses', icon: Receipt, label: 'Expenses' },
+  { to: '/deposits', icon: Landmark, label: 'Deposits' },
   { to: '/vendors', icon: Store, label: 'Vendors' },
   { to: '/subscriptions', icon: Calendar, label: 'Subscriptions' },
   { to: '/analytics', icon: BarChart3, label: 'Analytics' },

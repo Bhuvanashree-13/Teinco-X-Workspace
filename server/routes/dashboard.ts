@@ -1,8 +1,11 @@
 import { Router } from 'express'
 import { prisma } from '../db.js'
 import { startOfMonth, endOfMonth, startOfYear, endOfYear, subMonths, format } from 'date-fns'
+import { requireAdmin, requireAuth } from '../middleware/auth.js'
 
 const router = Router()
+
+router.use(requireAuth, requireAdmin)
 
 router.get('/kpi', async (req, res) => {
   try {
@@ -15,6 +18,12 @@ router.get('/kpi', async (req, res) => {
     const prevMonthEnd = endOfMonth(subMonths(now, 1))
     const prevYearStart = startOfYear(subMonths(now, 12))
     const prevYearEnd = endOfYear(subMonths(now, 12))
+
+    const deposits = await prisma.deposit.aggregate({
+      where: { status: 'received' },
+      _sum: { baseCurrencyAmount: true },
+      _count: true,
+    })
 
     // Current month spend
     const currentMonthExpenses = await prisma.expense.aggregate({
@@ -202,7 +211,10 @@ router.get('/kpi', async (req, res) => {
         dueDate: e.nextDueDate
       })),
       monthlyTrend: Object.entries(monthlyTrend).map(([month, amount]) => ({ month, amount })),
-      totalExpenses: allExpenses.length
+      totalExpenses: allExpenses.length,
+      totalDeposits: Number(deposits._sum.baseCurrencyAmount) || 0,
+      depositCount: deposits._count,
+      availableBalance: (Number(deposits._sum.baseCurrencyAmount) || 0) - (Number(currentYearExpenses._sum.baseCurrencyAmount) || 0)
     })
   } catch (error) {
     console.error('Dashboard KPI error:', error)

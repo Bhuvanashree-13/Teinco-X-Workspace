@@ -101,14 +101,19 @@ router.post('/', async (req, res) => {
     const description = String(data.description || '').trim()
     const categoryId = Number(data.categoryId)
     const baseAmount = Number(data.baseAmount) || 0
-    const gstAmount = Number(data.gstAmount) || 0
-    const totalAmount = Number(data.totalAmount) || baseAmount + gstAmount
-    const originalAmount = Number(data.originalAmount) || totalAmount
-    const exchangeRate = Number(data.exchangeRate) || 1
+    const gstRate = Number(data.gstRate) || 0
+    const originalCurrency = String(data.originalCurrency || 'INR').toUpperCase()
+    const exchangeRate = originalCurrency === 'INR' ? 1 : Number(data.exchangeRate)
+    const gstAmount = Math.round(baseAmount * gstRate) / 100
+    const totalAmount = Math.round((baseAmount + gstAmount) * 100) / 100
+    const originalAmount = totalAmount
 
     if (!description) return res.status(400).json({ error: 'Expense description is required' })
     if (!Number.isFinite(categoryId) || categoryId <= 0) return res.status(400).json({ error: 'Expense category is required' })
     if (totalAmount <= 0) return res.status(400).json({ error: 'Expense amount must be greater than zero' })
+    if (gstRate < 0 || gstRate > 100) return res.status(400).json({ error: 'GST rate must be between 0% and 100%' })
+    if (!['INR', 'USD', 'EUR'].includes(originalCurrency)) return res.status(400).json({ error: 'Currency must be INR, USD, or EUR' })
+    if (!Number.isFinite(exchangeRate) || exchangeRate <= 0) return res.status(400).json({ error: 'A valid INR exchange rate is required' })
 
     const year = new Date().getFullYear()
     const count = await prisma.expense.count({
@@ -116,8 +121,9 @@ router.post('/', async (req, res) => {
     })
     const expenseId = `EXP-${year}-${String(count + 1).padStart(6, '0')}`
 
-    const expense = await prisma.expense.create({
-      data: {
+    const expense = await prisma.$transaction(async tx => {
+      const createdExpense = await tx.expense.create({
+        data: {
         expenseDate: data.expenseDate ? new Date(data.expenseDate) : new Date(),
         vendorId: data.vendorId ? Number(data.vendorId) : null,
         description,
@@ -126,8 +132,9 @@ router.post('/', async (req, res) => {
         expenseType: data.expenseType || 'one_time',
         baseAmount,
         gstAmount,
+        gstRate,
         totalAmount,
-        originalCurrency: data.originalCurrency || 'INR',
+        originalCurrency,
         originalAmount,
         exchangeRate,
         paymentMethodId: data.paymentMethodId ? Number(data.paymentMethodId) : null,
@@ -149,23 +156,33 @@ router.post('/', async (req, res) => {
         tags: data.tags || null,
         expenseId,
         baseCurrency: 'INR',
-        baseCurrencyAmount: data.originalCurrency === 'INR' ? originalAmount : Math.round(originalAmount * exchangeRate),
+        baseCurrencyAmount: Math.round(originalAmount * exchangeRate * 100) / 100,
         status: 'active'
-      },
-      include: {
-        vendor: { select: { name: true } },
-        category: { select: { name: true, color: true } },
-      }
-    })
+        },
+        include: {
+          vendor: { select: { name: true } },
+          category: { select: { name: true, color: true } },
+        }
+      })
 
-    // Audit log
-    await prisma.auditLog.create({
-      data: {
-        action: 'create',
-        entityType: 'expense',
-        entityId: expense.expenseId,
-        newValue: JSON.stringify(expense),
-      }
+      // Keep the audit payload compact. This column is a bounded string in
+      // existing databases, so serializing the full Prisma record can fail
+      // after the expense has already been inserted.
+      await tx.auditLog.create({
+        data: {
+          action: 'create',
+          entityType: 'expense',
+          entityId: createdExpense.expenseId,
+          expenseId: createdExpense.id,
+          newValue: JSON.stringify({
+            expenseId: createdExpense.expenseId,
+            amount: Number(createdExpense.baseCurrencyAmount),
+            status: createdExpense.status,
+          }),
+        }
+      })
+
+      return createdExpense
     })
 
     res.json(expense)

@@ -1,5 +1,5 @@
 import { useApi, formatCurrency } from '../hooks/useApi'
-import { TrendingUp, TrendingDown, Wallet, CreditCard, Users, Server, Monitor, ArrowUpRight, Activity, Zap, HardDrive } from 'lucide-react'
+import { TrendingUp, TrendingDown, Wallet, CreditCard, Users, Server, Monitor, ArrowUpRight, Activity, Zap, HardDrive, Landmark, ArrowDownToLine } from 'lucide-react'
 import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, AreaChart, Area } from 'recharts'
 
 interface DashboardData {
@@ -18,6 +18,9 @@ interface DashboardData {
   upcomingExpenses: Array<any>
   monthlyTrend: Array<{ month: string; amount: number }>
   totalExpenses: number
+  totalDeposits: number
+  depositCount: number
+  availableBalance: number
 }
 
 export default function Dashboard() {
@@ -36,6 +39,22 @@ export default function Dashboard() {
   const isMomUp = Number(momChange) >= 0
 
   const kpiCards = [
+    {
+      title: 'Available Balance',
+      value: data.availableBalance,
+      icon: Landmark,
+      change: null,
+      isUp: false,
+      subtitle: 'Deposits less YTD spend'
+    },
+    {
+      title: 'Total Deposits',
+      value: data.totalDeposits,
+      icon: ArrowDownToLine,
+      change: null,
+      isUp: false,
+      subtitle: `${data.depositCount} received`
+    },
     { 
       title: 'Current Month', 
       value: data.currentMonthSpend, 

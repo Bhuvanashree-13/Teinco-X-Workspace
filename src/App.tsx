@@ -11,6 +11,7 @@ import Schedule from './components/Schedule'
 import Flow from './components/Flow'
 import Login from './components/Login'
 import Payslips from './components/Payslips'
+import Deposits from './components/Deposits'
 import { RoleProvider, useRole } from './context/RoleContext'
 
 function AppRoutes() {
@@ -31,6 +32,7 @@ function AppRoutes() {
       <Route path="/" element={<Layout />}>
         <Route index element={<Dashboard />} />
         <Route path="expenses" element={<Expenses />} />
+        <Route path="deposits" element={<Deposits />} />
         <Route path="vendors" element={<Vendors />} />
         <Route path="subscriptions" element={<Subscriptions />} />
         <Route path="analytics" element={<Analytics />} />

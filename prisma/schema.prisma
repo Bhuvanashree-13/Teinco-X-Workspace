@@ -39,6 +39,31 @@ model User {
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt
   auditLogs AuditLog[]
+  deposits  Deposit[]
+}
+
+model Deposit {
+  id                 Int      @id @default(autoincrement())
+  depositId          String   @unique // DEP-2026-000001
+  depositDate        DateTime
+  source             String
+  description        String?
+  originalCurrency   String   @default("INR")
+  originalAmount     Decimal
+  exchangeRate       Decimal  @default(1) // INR received for one unit of original currency
+  baseCurrency       String   @default("INR")
+  baseCurrencyAmount Decimal
+  referenceNumber    String?
+  paymentMethod      String?
+  status             String   @default("received") // received | reversed
+  createdById        Int?
+  createdBy          User?    @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@index([depositDate])
+  @@index([status])
+  @@index([depositId])
 }
 
 model ExpenseCategory {
@@ -174,6 +199,7 @@ model Expense {
   expenseType        String              @default("one_time") // recurring | one_time | adhoc | salary | reimbursement | capex | opex
   baseAmount         Decimal             @default(0)
   gstAmount          Decimal             @default(0)
+  gstRate            Decimal             @default(0)
   cgstAmount         Decimal             @default(0)
   sgstAmount         Decimal             @default(0)
   igstAmount         Decimal             @default(0)

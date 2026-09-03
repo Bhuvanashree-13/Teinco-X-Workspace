@@ -4,7 +4,7 @@ import { Search, Filter, Plus, Download, ChevronLeft, ChevronRight, FileText, X 
 
 const emptyForm = {
   expenseDate: new Date().toISOString().slice(0, 10), vendorId: '', description: '', categoryId: '',
-  expenseType: 'one_time', baseAmount: '', gstAmount: '0', originalCurrency: 'INR', exchangeRate: '1',
+  expenseType: 'one_time', baseAmount: '', gstRate: '0', originalCurrency: 'INR', exchangeRate: '1',
   businessPurpose: '', invoiceNumber: '', taxDeductible: false, gstInputCredit: 'unknown'
 }
 
@@ -25,6 +25,7 @@ export default function Expenses() {
   const [form, setForm] = useState(emptyForm)
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState('')
+  const [messageType, setMessageType] = useState<'success' | 'error'>('success')
   const [limit] = useState(20)
   const { data, loading, refetch } = useApi(`/expenses?page=${page}&limit=${limit}&search=${encodeURIComponent(search)}&expenseType=${expenseType}`)
   const { data: vendors } = useApi<any[]>('/vendors?isActive=true')
@@ -35,8 +36,11 @@ export default function Expenses() {
   const totalPages = data?.totalPages || 1
 
   const baseAmount = Number(form.baseAmount) || 0
-  const gstAmount = Number(form.gstAmount) || 0
+  const gstRate = Math.min(100, Math.max(0, Number(form.gstRate) || 0))
+  const gstAmount = Math.round(baseAmount * gstRate) / 100
   const totalAmount = baseAmount + gstAmount
+  const exchangeRate = form.originalCurrency === 'INR' ? 1 : Number(form.exchangeRate) || 0
+  const totalInr = Math.round(totalAmount * exchangeRate * 100) / 100
   const categoryOptions = buildCategoryOptions(categories || [])
 
   const submitExpense = async (event: React.FormEvent) => {
@@ -48,17 +52,18 @@ export default function Expenses() {
         expenseDate: new Date(`${form.expenseDate}T12:00:00`).toISOString(),
         vendorId: form.vendorId ? Number(form.vendorId) : null,
         description: form.description.trim(), categoryId: Number(form.categoryId), expenseType: form.expenseType,
-        baseAmount, gstAmount, totalAmount, originalCurrency: form.originalCurrency,
-        originalAmount: totalAmount, exchangeRate: Number(form.exchangeRate) || 1,
+        baseAmount, gstRate, originalCurrency: form.originalCurrency, exchangeRate,
         businessPurpose: form.businessPurpose || null, invoiceNumber: form.invoiceNumber || null,
         taxDeductible: form.taxDeductible, gstInputCredit: form.gstInputCredit,
       })
       setForm(emptyForm)
       setShowForm(false)
+      setMessageType('success')
       setMessage('Expense recorded successfully.')
       setPage(1)
       await refetch()
     } catch (error: any) {
+      setMessageType('error')
       setMessage(error.message || 'Could not save expense.')
     } finally { setSaving(false) }
   }
@@ -90,7 +95,11 @@ export default function Expenses() {
         </div>
       </div>
 
-      {message && <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">{message}</div>}
+      {message && <div className={`rounded-lg border px-4 py-3 text-sm ${
+        messageType === 'success'
+          ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+          : 'border-red-200 bg-red-50 text-red-800'
+      }`}>{message}</div>}
 
       <div className="brand-card overflow-hidden dark:border-gray-700 dark:bg-gray-800">
         <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex flex-col sm:flex-row gap-3 sm:gap-4">
@@ -204,13 +213,15 @@ export default function Expenses() {
               <label className="text-sm sm:col-span-2 dark:text-gray-200">Description<input required value={form.description} onChange={e => setForm({...form, description:e.target.value})} placeholder="What was purchased?" className="mt-1 w-full rounded-lg border p-2.5 dark:border-gray-600 dark:bg-gray-900" /></label>
               <label className="text-sm dark:text-gray-200">Category<select required value={form.categoryId} onChange={e => setForm({...form, categoryId:e.target.value})} className="mt-1 w-full rounded-lg border p-2.5 dark:border-gray-600 dark:bg-gray-900"><option value="">{categoryOptions.length ? 'Select category' : 'No categories available'}</option>{categoryOptions.map(category => <option key={category.id} value={category.id}>{category.isChild ? '— ' : ''}{category.label}</option>)}</select><span className="mt-1 block text-xs text-slate-500">Choose the exact category or subcategory for this spend.</span></label>
               <label className="text-sm dark:text-gray-200">Expense type<select value={form.expenseType} onChange={e => setForm({...form, expenseType:e.target.value})} className="mt-1 w-full rounded-lg border p-2.5 dark:border-gray-600 dark:bg-gray-900"><option value="one_time">One time</option><option value="recurring">Recurring</option><option value="salary">Salary</option><option value="reimbursement">Reimbursement</option><option value="capex">Capital expense</option><option value="opex">Operating expense</option></select></label>
-              <label className="text-sm dark:text-gray-200">Net amount (₹)<input required min="0.01" step="0.01" type="number" value={form.baseAmount} onChange={e => setForm({...form, baseAmount:e.target.value})} className="mt-1 w-full rounded-lg border p-2.5 dark:border-gray-600 dark:bg-gray-900" /></label>
-              <label className="text-sm dark:text-gray-200">GST amount (₹)<input min="0" step="0.01" type="number" value={form.gstAmount} onChange={e => setForm({...form, gstAmount:e.target.value})} className="mt-1 w-full rounded-lg border p-2.5 dark:border-gray-600 dark:bg-gray-900" /></label>
+              <label className="text-sm dark:text-gray-200">Currency<select value={form.originalCurrency} onChange={e => setForm({...form, originalCurrency:e.target.value, exchangeRate:e.target.value === 'INR' ? '1' : ''})} className="mt-1 w-full rounded-lg border p-2.5 dark:border-gray-600 dark:bg-gray-900"><option value="INR">INR — Indian Rupee</option><option value="USD">USD — US Dollar</option><option value="EUR">EUR — Euro</option></select></label>
+              <label className="text-sm dark:text-gray-200">Net amount ({form.originalCurrency})<input required min="0.01" step="0.01" type="number" value={form.baseAmount} onChange={e => setForm({...form, baseAmount:e.target.value})} className="mt-1 w-full rounded-lg border p-2.5 dark:border-gray-600 dark:bg-gray-900" /></label>
+              <label className="text-sm dark:text-gray-200">GST rate: {gstRate}%<input min="0" max="100" step="0.01" type="number" value={form.gstRate} onChange={e => setForm({...form, gstRate:e.target.value})} className="mt-1 w-full rounded-lg border p-2.5 dark:border-gray-600 dark:bg-gray-900" /><span className="mt-1 block text-xs text-slate-500">GST is calculated automatically: {gstAmount.toFixed(2)} {form.originalCurrency}</span></label>
+              {form.originalCurrency !== 'INR' && <label className="text-sm dark:text-gray-200">Exchange rate <span className="text-xs text-gray-500">(₹ for 1 {form.originalCurrency})</span><input required min="0.0001" step="0.0001" type="number" value={form.exchangeRate} onChange={e => setForm({...form, exchangeRate:e.target.value})} className="mt-1 w-full rounded-lg border p-2.5 dark:border-gray-600 dark:bg-gray-900" /></label>}
               <label className="text-sm dark:text-gray-200">Invoice number<input value={form.invoiceNumber} onChange={e => setForm({...form, invoiceNumber:e.target.value})} className="mt-1 w-full rounded-lg border p-2.5 dark:border-gray-600 dark:bg-gray-900" /></label>
               <label className="text-sm dark:text-gray-200">Business purpose<input value={form.businessPurpose} onChange={e => setForm({...form, businessPurpose:e.target.value})} className="mt-1 w-full rounded-lg border p-2.5 dark:border-gray-600 dark:bg-gray-900" /></label>
               <label className="flex items-center gap-2 text-sm dark:text-gray-200"><input type="checkbox" checked={form.taxDeductible} onChange={e => setForm({...form, taxDeductible:e.target.checked})} /> Tax deductible</label>
-              <div className="text-right"><p className="text-xs text-gray-500">Total payable</p><p className="text-xl font-bold dark:text-white">{formatCurrency(totalAmount)}</p></div>
-              <div className="mobile-form-actions dark:border-gray-700"><button type="button" onClick={() => setShowForm(false)} className="rounded-lg border px-4 py-2 text-sm dark:border-gray-600">Cancel</button><button disabled={saving} className="brand-primary-button">{saving ? 'Saving…' : 'Save expense'}</button></div>
+              <div className="rounded-lg bg-slate-50 p-3 text-right dark:bg-gray-700"><p className="text-xs text-gray-500">Total payable in INR</p><p className="text-xl font-bold dark:text-white">{formatCurrency(totalInr)}</p>{form.originalCurrency !== 'INR' && <p className="text-xs text-gray-500">{totalAmount.toFixed(2)} {form.originalCurrency}, including GST</p>}</div>
+              <div className="mobile-form-actions dark:border-gray-700"><button type="button" onClick={() => setShowForm(false)} className="rounded-lg border px-4 py-2 text-sm dark:border-gray-600">Cancel</button><button disabled={saving || totalInr <= 0} className="brand-primary-button">{saving ? 'Saving…' : 'Save expense'}</button></div>
             </form>
           </div>
         </div>
