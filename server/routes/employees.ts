@@ -1,6 +1,6 @@
 import { Router } from 'express'
 import { randomUUID } from 'node:crypto'
-import { endOfDay, endOfYear, startOfDay, startOfYear } from 'date-fns'
+import { endOfDay, endOfYear, format, startOfDay, startOfYear } from 'date-fns'
 import { prisma } from '../db.js'
 import { isAdmin, requireAdmin, requireAuth, type AuthedRequest } from '../middleware/auth.js'
 
@@ -93,6 +93,69 @@ const calculatePayrollSnapshot = async (periodStart: Date, periodEnd: Date) => {
   const reimbursements = toNumber(approvedExpenses._sum.baseCurrencyAmount)
 
   return { activeEmployees, grossPay, reimbursements }
+}
+
+const syncPayrollSalaryExpense = async (payrollBatchId: number) => {
+  const batch = await prisma.payrollBatch.findUnique({ where: { id: payrollBatchId } })
+  if (!batch) return
+
+  const salaryCategory = await prisma.expenseCategory.findFirst({
+    where: { code: 'SALARIES', isActive: true, isArchived: false },
+  })
+  if (!salaryCategory) throw new Error('The Salaries expense category is not configured')
+
+  // Reimbursements are already represented by their original expense records.
+  // Gross pay plus bonuses is the employer's salary expense for this payroll period.
+  const salaryAmount = Math.max(0, toNumber(batch.grossPay) + toNumber(batch.bonuses))
+  const description = `Employee salaries — ${format(batch.periodStart, 'MMM yyyy')} (${batch.batchId})`
+  const existingExpense = await prisma.expense.findUnique({ where: { payrollBatchId } })
+
+  if (existingExpense) {
+    await prisma.expense.update({
+      where: { id: existingExpense.id },
+      data: {
+        expenseDate: batch.periodEnd,
+        description,
+        categoryId: salaryCategory.id,
+        expenseType: 'salary',
+        baseAmount: salaryAmount,
+        gstRate: 0,
+        gstAmount: 0,
+        totalAmount: salaryAmount,
+        originalAmount: salaryAmount,
+        exchangeRate: 1,
+        baseCurrencyAmount: salaryAmount,
+        notes: batch.notes,
+        status: 'active',
+      },
+    })
+    return
+  }
+
+  const year = new Date().getFullYear()
+  const expenseCount = await prisma.expense.count({ where: { expenseId: { startsWith: `EXP-${year}` } } })
+  await prisma.expense.create({
+    data: {
+      expenseId: `EXP-${year}-${String(expenseCount + 1).padStart(6, '0')}`,
+      expenseDate: batch.periodEnd,
+      description,
+      categoryId: salaryCategory.id,
+      expenseType: 'salary',
+      payrollBatchId: batch.id,
+      baseAmount: salaryAmount,
+      gstRate: 0,
+      gstAmount: 0,
+      totalAmount: salaryAmount,
+      originalCurrency: 'INR',
+      originalAmount: salaryAmount,
+      exchangeRate: 1,
+      baseCurrency: 'INR',
+      baseCurrencyAmount: salaryAmount,
+      businessPurpose: 'Employee payroll',
+      notes: batch.notes,
+      status: 'active',
+    },
+  })
 }
 
 router.use(requireAuth)
@@ -511,6 +574,11 @@ router.get('/payslips', async (req: AuthedRequest, res) => {
 
 router.get('/payroll-batches', requireAdmin, async (_req, res) => {
   try {
+    const unsyncedBatches = await prisma.payrollBatch.findMany({
+      where: { salaryExpense: null },
+      select: { id: true },
+    })
+    for (const batch of unsyncedBatches) await syncPayrollSalaryExpense(batch.id)
     const batches = await prisma.payrollBatch.findMany({
       include: { employees: { include: { employee: true } } },
       orderBy: { periodStart: 'desc' },
@@ -577,6 +645,8 @@ router.post('/payroll-batches', requireAdmin, async (req, res) => {
       include: { employees: { include: { employee: true } } },
     })
 
+    await syncPayrollSalaryExpense(batch.id)
+
     res.json(serializePayrollBatch(batch))
   } catch (error) {
     console.error('Create payroll batch error:', error)
@@ -626,6 +696,8 @@ router.put('/payroll-batches/:id', requireAdmin, async (req, res) => {
       },
       include: { employees: { include: { employee: true }, orderBy: { employee: { name: 'asc' } } } },
     })
+
+    await syncPayrollSalaryExpense(batch.id)
 
     res.json(serializePayrollBatch(batch))
   } catch (error) {

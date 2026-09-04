@@ -197,6 +197,8 @@ model Expense {
   subcategoryId      Int?
   subcategory        ExpenseCategory?    @relation(fields: [subcategoryId], references: [id], name: "SubcategoryExpenses")
   expenseType        String              @default("one_time") // recurring | one_time | adhoc | salary | reimbursement | capex | opex
+  payrollBatchId     Int?                @unique
+  payrollBatch       PayrollBatch?       @relation(fields: [payrollBatchId], references: [id], onDelete: Cascade)
   baseAmount         Decimal             @default(0)
   gstAmount          Decimal             @default(0)
   gstRate            Decimal             @default(0)
@@ -502,6 +504,7 @@ model PayrollBatch {
   netPay           Decimal                @default(0)
   notes            String?
   employees        PayrollBatchEmployee[]
+  salaryExpense    Expense?
   createdAt        DateTime               @default(now())
   updatedAt        DateTime               @updatedAt
 
