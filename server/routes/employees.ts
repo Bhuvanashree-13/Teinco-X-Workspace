@@ -108,7 +108,7 @@ const syncPayrollSalaryExpense = async (payrollBatchId: number) => {
   // Gross pay plus bonuses is the employer's salary expense for this payroll period.
   const salaryAmount = Math.max(0, toNumber(batch.grossPay) + toNumber(batch.bonuses))
   const description = `Employee salaries — ${format(batch.periodStart, 'MMM yyyy')} (${batch.batchId})`
-  const existingExpense = await prisma.expense.findUnique({ where: { payrollBatchId } })
+  const existingExpense = await prisma.expense.findFirst({ where: { payrollBatchId } })
 
   if (existingExpense) {
     await prisma.expense.update({
@@ -575,7 +575,7 @@ router.get('/payslips', async (req: AuthedRequest, res) => {
 router.get('/payroll-batches', requireAdmin, async (_req, res) => {
   try {
     const unsyncedBatches = await prisma.payrollBatch.findMany({
-      where: { salaryExpense: null },
+      where: { salaryExpenses: { none: {} } },
       select: { id: true },
     })
     for (const batch of unsyncedBatches) await syncPayrollSalaryExpense(batch.id)
