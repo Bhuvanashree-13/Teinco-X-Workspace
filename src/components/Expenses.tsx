@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { apiDelete, apiPost, apiPut, useApi, formatCurrency, formatDate } from '../hooks/useApi'
-import { Search, Filter, Plus, Download, ChevronLeft, ChevronRight, FileText, X, ReceiptIndianRupee, Calculator, CheckCircle2, Pencil, Trash2 } from 'lucide-react'
+import { Search, Filter, Plus, Download, ChevronLeft, ChevronRight, FileText, X, ReceiptIndianRupee, Calculator, CheckCircle2, Pencil, Trash2, RefreshCw } from 'lucide-react'
 
 const emptyForm = {
   expenseDate: new Date().toISOString().slice(0, 10), vendorId: '', description: '', categoryId: '',
@@ -27,6 +27,10 @@ export default function Expenses() {
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState('')
   const [messageType, setMessageType] = useState<'success' | 'error'>('success')
+  const [rateLoading, setRateLoading] = useState(false)
+  const [rateError, setRateError] = useState('')
+  const [rateDate, setRateDate] = useState('')
+  const [rateRefresh, setRateRefresh] = useState(0)
   const [limit] = useState(20)
   const { data, loading, refetch } = useApi(`/expenses?page=${page}&limit=${limit}&search=${encodeURIComponent(search)}&expenseType=${expenseType}`)
   const { data: vendors } = useApi<any[]>('/vendors?isActive=true')
@@ -44,6 +48,39 @@ export default function Expenses() {
   const totalInr = Math.round(totalAmount * exchangeRate * 100) / 100
   const categoryOptions = buildCategoryOptions(categories || [])
   const visibleTotal = expenses.reduce((sum: number, expense: any) => sum + Number(expense.baseCurrencyAmount || 0), 0)
+
+  useEffect(() => {
+    if (!showForm || form.originalCurrency === 'INR') {
+      setRateLoading(false)
+      setRateError('')
+      setRateDate('')
+      if (form.exchangeRate !== '1') setForm(current => ({ ...current, exchangeRate: '1' }))
+      return
+    }
+
+    const controller = new AbortController()
+    const loadRate = async () => {
+      setRateLoading(true)
+      setRateError('')
+      try {
+        const token = window.localStorage.getItem('teinco-x-token')
+        const response = await fetch(`/api/exchange-rates/${form.originalCurrency}`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+          signal: controller.signal,
+        })
+        const data = await response.json().catch(() => null)
+        if (!response.ok) throw new Error(data?.error || 'Could not load the live exchange rate')
+        setForm(current => ({ ...current, exchangeRate: String(data.rate) }))
+        setRateDate(data.date || '')
+      } catch (error: any) {
+        if (error.name !== 'AbortError') setRateError(error.message || 'Could not load the live exchange rate')
+      } finally {
+        if (!controller.signal.aborted) setRateLoading(false)
+      }
+    }
+    loadRate()
+    return () => controller.abort()
+  }, [showForm, form.originalCurrency, rateRefresh])
 
   const openNew = () => {
     setEditingId(null)
@@ -270,12 +307,12 @@ export default function Expenses() {
               <label className="text-sm dark:text-gray-200">Currency<select value={form.originalCurrency} onChange={e => setForm({...form, originalCurrency:e.target.value, exchangeRate:e.target.value === 'INR' ? '1' : ''})} className="mt-1 w-full rounded-lg border p-2.5 dark:border-gray-600 dark:bg-gray-900"><option value="INR">INR — Indian Rupee</option><option value="USD">USD — US Dollar</option><option value="EUR">EUR — Euro</option></select></label>
               <label className="text-sm dark:text-gray-200">Net amount ({form.originalCurrency})<input required min="0.01" step="0.01" type="number" value={form.baseAmount} onChange={e => setForm({...form, baseAmount:e.target.value})} className="mt-1 w-full rounded-lg border p-2.5 dark:border-gray-600 dark:bg-gray-900" /></label>
               <label className="text-sm dark:text-gray-200">GST rate: {gstRate}%<input min="0" max="100" step="0.01" type="number" value={form.gstRate} onChange={e => setForm({...form, gstRate:e.target.value})} className="mt-1 w-full rounded-lg border p-2.5 dark:border-gray-600 dark:bg-gray-900" /><span className="mt-2 flex flex-wrap gap-1.5">{[0, 5, 12, 18, 28].map(rate => <button key={rate} type="button" onClick={() => setForm({...form, gstRate:String(rate)})} className={`rounded-full border px-2 py-1 text-[11px] font-medium transition ${gstRate === rate ? 'border-[#1E3A8A] bg-[#1E3A8A] text-white' : 'border-slate-200 text-slate-500 hover:border-blue-300 dark:border-gray-600'}`}>{rate}%</button>)}</span><span className="mt-1.5 block text-xs text-slate-500">GST amount: {gstAmount.toFixed(2)} {form.originalCurrency}</span></label>
-              {form.originalCurrency !== 'INR' && <label className="text-sm dark:text-gray-200">Exchange rate <span className="text-xs text-gray-500">(₹ for 1 {form.originalCurrency})</span><input required min="0.0001" step="0.0001" type="number" value={form.exchangeRate} onChange={e => setForm({...form, exchangeRate:e.target.value})} className="mt-1 w-full rounded-lg border p-2.5 dark:border-gray-600 dark:bg-gray-900" /></label>}
+              {form.originalCurrency !== 'INR' && <div className="rounded-xl border border-blue-100 bg-blue-50/70 p-3 dark:border-blue-900/50 dark:bg-blue-950/30"><div className="flex items-center justify-between gap-3"><div><p className="text-sm font-medium text-slate-700 dark:text-slate-200">Live exchange rate</p>{rateLoading ? <p className="mt-1 text-xs text-blue-600">Fetching latest rate…</p> : rateError ? <p className="mt-1 text-xs text-red-600">{rateError}</p> : <><p className="mt-1 text-lg font-semibold text-[#1E3A8A] dark:text-blue-300">1 {form.originalCurrency} = ₹{Number(form.exchangeRate || 0).toLocaleString('en-IN', { maximumFractionDigits: 4 })}</p><p className="text-[11px] text-slate-500">Reference rate {rateDate ? `for ${rateDate}` : ''}</p></>}</div><button type="button" onClick={() => setRateRefresh(value => value + 1)} disabled={rateLoading} className="grid h-9 w-9 place-items-center rounded-lg border border-blue-200 bg-white text-[#1E3A8A] disabled:opacity-50 dark:border-blue-800 dark:bg-gray-800 dark:text-blue-300" aria-label="Refresh exchange rate"><RefreshCw className={`h-4 w-4 ${rateLoading ? 'animate-spin' : ''}`} /></button></div></div>}
               <label className="text-sm dark:text-gray-200">Invoice number<input value={form.invoiceNumber} onChange={e => setForm({...form, invoiceNumber:e.target.value})} className="mt-1 w-full rounded-lg border p-2.5 dark:border-gray-600 dark:bg-gray-900" /></label>
               <label className="text-sm dark:text-gray-200">Business purpose<input value={form.businessPurpose} onChange={e => setForm({...form, businessPurpose:e.target.value})} className="mt-1 w-full rounded-lg border p-2.5 dark:border-gray-600 dark:bg-gray-900" /></label>
               <label className="flex items-center gap-2 text-sm dark:text-gray-200"><input type="checkbox" checked={form.taxDeductible} onChange={e => setForm({...form, taxDeductible:e.target.checked})} /> Tax deductible</label>
               <div className="finance-summary"><div className="flex items-center justify-between gap-3"><div className="grid h-9 w-9 place-items-center rounded-xl bg-white text-[#1E3A8A] shadow-sm dark:bg-gray-700 dark:text-blue-300"><CheckCircle2 className="h-4 w-4" /></div><div className="text-right"><p className="text-xs font-medium uppercase tracking-wide text-gray-500">Total payable in INR</p><p className="text-xl font-bold text-[#1E3A8A] dark:text-white">{formatCurrency(totalInr)}</p>{form.originalCurrency !== 'INR' && <p className="text-xs text-gray-500">{totalAmount.toFixed(2)} {form.originalCurrency}, including GST</p>}</div></div></div>
-              <div className="mobile-form-actions dark:border-gray-700"><button type="button" onClick={() => setShowForm(false)} className="rounded-lg border px-4 py-2 text-sm dark:border-gray-600">Cancel</button><button disabled={saving || totalInr <= 0} className="brand-primary-button">{saving ? 'Saving…' : editingId ? 'Update expense' : 'Save expense'}</button></div>
+              <div className="mobile-form-actions dark:border-gray-700"><button type="button" onClick={() => setShowForm(false)} className="rounded-lg border px-4 py-2 text-sm dark:border-gray-600">Cancel</button><button disabled={saving || rateLoading || Boolean(rateError) || totalInr <= 0} className="brand-primary-button">{saving ? 'Saving…' : rateLoading ? 'Loading rate…' : editingId ? 'Update expense' : 'Save expense'}</button></div>
             </form>
           </div>
         </div>

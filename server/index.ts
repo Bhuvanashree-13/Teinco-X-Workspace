@@ -25,6 +25,7 @@ import reportRoutes from './routes/reports.js'
 import importExportRoutes from './routes/import-export.js'
 import authRoutes from './routes/auth.js'
 import depositRoutes from './routes/deposits.js'
+import exchangeRateRoutes from './routes/exchange-rates.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -197,6 +198,7 @@ mkdirSync(uploadsPath, { recursive: true })
 // API Routes
 app.use('/api/auth', authRoutes)
 app.use('/api/deposits', depositRoutes)
+app.use('/api/exchange-rates', exchangeRateRoutes)
 app.use('/api/dashboard', dashboardRoutes)
 app.use('/api/expenses', expenseRoutes)
 app.use('/api/vendors', vendorRoutes)
