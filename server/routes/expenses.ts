@@ -195,9 +195,49 @@ router.post('/', async (req, res) => {
 // Update expense
 router.put('/:id', async (req, res) => {
   try {
+    const data = req.body
+    const description = String(data.description || '').trim()
+    const categoryId = Number(data.categoryId)
+    const baseAmount = Number(data.baseAmount) || 0
+    const gstRate = Number(data.gstRate) || 0
+    const originalCurrency = String(data.originalCurrency || 'INR').toUpperCase()
+    const exchangeRate = originalCurrency === 'INR' ? 1 : Number(data.exchangeRate)
+    const gstAmount = Math.round(baseAmount * gstRate) / 100
+    const totalAmount = Math.round((baseAmount + gstAmount) * 100) / 100
+
+    if (!description) return res.status(400).json({ error: 'Expense description is required' })
+    if (!Number.isFinite(categoryId) || categoryId <= 0) return res.status(400).json({ error: 'Expense category is required' })
+    if (totalAmount <= 0) return res.status(400).json({ error: 'Expense amount must be greater than zero' })
+    if (gstRate < 0 || gstRate > 100) return res.status(400).json({ error: 'GST rate must be between 0% and 100%' })
+    if (!['INR', 'USD', 'EUR'].includes(originalCurrency)) return res.status(400).json({ error: 'Currency must be INR, USD, or EUR' })
+    if (!Number.isFinite(exchangeRate) || exchangeRate <= 0) return res.status(400).json({ error: 'A valid INR exchange rate is required' })
+
+    const existing = await prisma.expense.findUnique({ where: { id: Number(req.params.id) } })
+    if (!existing || existing.status !== 'active') return res.status(404).json({ error: 'Expense not found' })
+    if (existing.payrollBatchId) return res.status(400).json({ error: 'Salary expenses must be edited from the Payroll section' })
+
     const expense = await prisma.expense.update({
       where: { id: Number(req.params.id) },
-      data: req.body,
+      data: {
+        expenseDate: data.expenseDate ? new Date(data.expenseDate) : existing.expenseDate,
+        vendorId: data.vendorId ? Number(data.vendorId) : null,
+        description,
+        categoryId,
+        expenseType: data.expenseType || existing.expenseType,
+        baseAmount,
+        gstRate,
+        gstAmount,
+        totalAmount,
+        originalCurrency,
+        originalAmount: totalAmount,
+        exchangeRate,
+        baseCurrency: 'INR',
+        baseCurrencyAmount: Math.round(totalAmount * exchangeRate * 100) / 100,
+        businessPurpose: data.businessPurpose || null,
+        invoiceNumber: data.invoiceNumber || null,
+        taxDeductible: Boolean(data.taxDeductible),
+        gstInputCredit: data.gstInputCredit || 'unknown',
+      },
       include: {
         vendor: { select: { name: true } },
         category: { select: { name: true, color: true } },
@@ -209,7 +249,12 @@ router.put('/:id', async (req, res) => {
         action: 'update',
         entityType: 'expense',
         entityId: expense.expenseId,
-        newValue: JSON.stringify(expense),
+        expenseId: expense.id,
+        newValue: JSON.stringify({
+          expenseId: expense.expenseId,
+          amount: Number(expense.baseCurrencyAmount),
+          status: expense.status,
+        }),
       }
     })
 
@@ -222,6 +267,9 @@ router.put('/:id', async (req, res) => {
 // Delete expense (soft delete)
 router.delete('/:id', async (req, res) => {
   try {
+    const existing = await prisma.expense.findUnique({ where: { id: Number(req.params.id) } })
+    if (!existing || existing.status !== 'active') return res.status(404).json({ error: 'Expense not found' })
+    if (existing.payrollBatchId) return res.status(400).json({ error: 'Salary expenses must be removed from the Payroll section' })
     const expense = await prisma.expense.update({
       where: { id: Number(req.params.id) },
       data: { status: 'deleted' }
@@ -232,7 +280,12 @@ router.delete('/:id', async (req, res) => {
         action: 'delete',
         entityType: 'expense',
         entityId: expense.expenseId,
-        previousValue: JSON.stringify(expense),
+        expenseId: expense.id,
+        previousValue: JSON.stringify({
+          expenseId: expense.expenseId,
+          amount: Number(expense.baseCurrencyAmount),
+          status: 'active',
+        }),
       }
     })
 

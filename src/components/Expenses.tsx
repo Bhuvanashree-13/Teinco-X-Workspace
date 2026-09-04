@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import { apiPost, useApi, formatCurrency, formatDate } from '../hooks/useApi'
-import { Search, Filter, Plus, Download, ChevronLeft, ChevronRight, FileText, X, ReceiptIndianRupee, Calculator, CheckCircle2 } from 'lucide-react'
+import { apiDelete, apiPost, apiPut, useApi, formatCurrency, formatDate } from '../hooks/useApi'
+import { Search, Filter, Plus, Download, ChevronLeft, ChevronRight, FileText, X, ReceiptIndianRupee, Calculator, CheckCircle2, Pencil, Trash2 } from 'lucide-react'
 
 const emptyForm = {
   expenseDate: new Date().toISOString().slice(0, 10), vendorId: '', description: '', categoryId: '',
@@ -22,6 +22,7 @@ export default function Expenses() {
   const [search, setSearch] = useState('')
   const [expenseType, setExpenseType] = useState('')
   const [showForm, setShowForm] = useState(false)
+  const [editingId, setEditingId] = useState<number | null>(null)
   const [form, setForm] = useState(emptyForm)
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState('')
@@ -44,23 +45,67 @@ export default function Expenses() {
   const categoryOptions = buildCategoryOptions(categories || [])
   const visibleTotal = expenses.reduce((sum: number, expense: any) => sum + Number(expense.baseCurrencyAmount || 0), 0)
 
+  const openNew = () => {
+    setEditingId(null)
+    setForm(emptyForm)
+    setShowForm(true)
+  }
+
+  const openEdit = (expense: any) => {
+    setEditingId(expense.id)
+    setForm({
+      expenseDate: new Date(expense.expenseDate).toISOString().slice(0, 10),
+      vendorId: expense.vendorId ? String(expense.vendorId) : '',
+      description: expense.description || '',
+      categoryId: String(expense.categoryId || ''),
+      expenseType: expense.expenseType || 'one_time',
+      baseAmount: String(expense.baseAmount ?? ''),
+      gstRate: String(expense.gstRate ?? 0),
+      originalCurrency: expense.originalCurrency || 'INR',
+      exchangeRate: String(expense.exchangeRate ?? 1),
+      businessPurpose: expense.businessPurpose || '',
+      invoiceNumber: expense.invoiceNumber || '',
+      taxDeductible: Boolean(expense.taxDeductible),
+      gstInputCredit: expense.gstInputCredit || 'unknown',
+    })
+    setShowForm(true)
+  }
+
+  const removeExpense = async (expense: any) => {
+    if (!window.confirm(`Remove expense ${expense.expenseId}? It will be hidden from the active ledger.`)) return
+    setSaving(true)
+    setMessage('')
+    try {
+      await apiDelete(`/expenses/${expense.id}`)
+      setMessageType('success')
+      setMessage('Expense removed successfully.')
+      await refetch()
+    } catch (error: any) {
+      setMessageType('error')
+      setMessage(error.message || 'Could not remove expense.')
+    } finally { setSaving(false) }
+  }
+
   const submitExpense = async (event: React.FormEvent) => {
     event.preventDefault()
     setSaving(true)
     setMessage('')
     try {
-      await apiPost('/expenses', {
+      const payload = {
         expenseDate: new Date(`${form.expenseDate}T12:00:00`).toISOString(),
         vendorId: form.vendorId ? Number(form.vendorId) : null,
         description: form.description.trim(), categoryId: Number(form.categoryId), expenseType: form.expenseType,
         baseAmount, gstRate, originalCurrency: form.originalCurrency, exchangeRate,
         businessPurpose: form.businessPurpose || null, invoiceNumber: form.invoiceNumber || null,
         taxDeductible: form.taxDeductible, gstInputCredit: form.gstInputCredit,
-      })
+      }
+      if (editingId) await apiPut(`/expenses/${editingId}`, payload)
+      else await apiPost('/expenses', payload)
       setForm(emptyForm)
+      setEditingId(null)
       setShowForm(false)
       setMessageType('success')
-      setMessage('Expense recorded successfully.')
+      setMessage(editingId ? 'Expense updated successfully.' : 'Expense recorded successfully.')
       setPage(1)
       await refetch()
     } catch (error: any) {
@@ -90,7 +135,7 @@ export default function Expenses() {
           <button onClick={exportCsv} className="brand-secondary-button">
             <Download className="w-4 h-4" /> Export
           </button>
-          <button onClick={() => setShowForm(true)} className="brand-primary-button">
+          <button onClick={openNew} className="brand-primary-button">
             <Plus className="w-4 h-4" /> Add Expense
           </button>
         </div>
@@ -136,7 +181,7 @@ export default function Expenses() {
         ) : (
           <>
             <div className="overflow-x-auto">
-              <table className="min-w-[860px] w-full text-sm text-left">
+              <table className="min-w-[980px] w-full text-sm text-left">
                 <thead className="bg-gray-50 dark:bg-gray-700/50 text-gray-500 dark:text-gray-400">
                   <tr>
                     <th className="px-4 py-3 font-medium whitespace-nowrap">ID</th>
@@ -146,6 +191,7 @@ export default function Expenses() {
                     <th className="px-4 py-3 font-medium whitespace-nowrap">Category</th>
                     <th className="px-4 py-3 font-medium whitespace-nowrap">Type</th>
                     <th className="px-4 py-3 font-medium text-right whitespace-nowrap">Amount</th>
+                    <th className="px-4 py-3 font-medium text-right whitespace-nowrap">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
@@ -174,6 +220,7 @@ export default function Expenses() {
                         </span>
                       </td>
                       <td className="px-4 py-3 text-right font-semibold text-gray-900 dark:text-white whitespace-nowrap">{formatCurrency(exp.baseCurrencyAmount)}</td>
+                      <td className="px-4 py-3 whitespace-nowrap">{exp.payrollBatchId ? <div className="text-right text-xs font-medium text-slate-400">Managed in Payroll</div> : <div className="flex justify-end gap-2"><button type="button" onClick={() => openEdit(exp)} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-[#1E3A8A] transition hover:border-blue-300 hover:bg-blue-50 dark:border-gray-600 dark:text-blue-300 dark:hover:bg-blue-900/30"><Pencil className="h-3.5 w-3.5" /> Edit</button><button type="button" onClick={() => removeExpense(exp)} disabled={saving} className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 px-2.5 py-1.5 text-xs font-medium text-red-600 transition hover:bg-red-50 disabled:opacity-50 dark:border-red-900/60 dark:text-red-400 dark:hover:bg-red-900/20"><Trash2 className="h-3.5 w-3.5" /> Remove</button></div>}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -213,7 +260,7 @@ export default function Expenses() {
       {showForm && (
         <div className="mobile-dialog-overlay" onMouseDown={() => setShowForm(false)}>
           <div className="mobile-dialog-panel mobile-dialog-panel-lg" onMouseDown={e => e.stopPropagation()}>
-            <div className="mobile-dialog-header"><div className="flex items-center gap-3"><div className="grid h-10 w-10 place-items-center rounded-xl bg-blue-50 text-[#1E3A8A] dark:bg-blue-900/30 dark:text-blue-300"><ReceiptIndianRupee className="h-5 w-5" /></div><div><h3 className="text-lg font-semibold dark:text-white">Record expense</h3><p className="text-sm text-gray-500">GST and foreign currency are calculated automatically.</p></div></div><button type="button" onClick={() => setShowForm(false)} className="mobile-dialog-close" aria-label="Close expense form"><X className="h-5 w-5" /></button></div>
+            <div className="mobile-dialog-header"><div className="flex items-center gap-3"><div className="grid h-10 w-10 place-items-center rounded-xl bg-blue-50 text-[#1E3A8A] dark:bg-blue-900/30 dark:text-blue-300">{editingId ? <Pencil className="h-5 w-5" /> : <ReceiptIndianRupee className="h-5 w-5" />}</div><div><h3 className="text-lg font-semibold dark:text-white">{editingId ? 'Edit expense' : 'Record expense'}</h3><p className="text-sm text-gray-500">GST and foreign currency are calculated automatically.</p></div></div><button type="button" onClick={() => setShowForm(false)} className="mobile-dialog-close" aria-label="Close expense form"><X className="h-5 w-5" /></button></div>
             <form onSubmit={submitExpense} className="mobile-dialog-form">
               <label className="text-sm dark:text-gray-200">Date<input required type="date" value={form.expenseDate} onChange={e => setForm({...form, expenseDate:e.target.value})} className="mt-1 w-full rounded-lg border p-2.5 dark:border-gray-600 dark:bg-gray-900" /></label>
               <label className="text-sm dark:text-gray-200">Vendor<select value={form.vendorId} onChange={e => setForm({...form, vendorId:e.target.value})} className="mt-1 w-full rounded-lg border p-2.5 dark:border-gray-600 dark:bg-gray-900"><option value="">No vendor</option>{(vendors || []).map(v => <option key={v.id} value={v.id}>{v.name}</option>)}</select></label>
@@ -228,7 +275,7 @@ export default function Expenses() {
               <label className="text-sm dark:text-gray-200">Business purpose<input value={form.businessPurpose} onChange={e => setForm({...form, businessPurpose:e.target.value})} className="mt-1 w-full rounded-lg border p-2.5 dark:border-gray-600 dark:bg-gray-900" /></label>
               <label className="flex items-center gap-2 text-sm dark:text-gray-200"><input type="checkbox" checked={form.taxDeductible} onChange={e => setForm({...form, taxDeductible:e.target.checked})} /> Tax deductible</label>
               <div className="finance-summary"><div className="flex items-center justify-between gap-3"><div className="grid h-9 w-9 place-items-center rounded-xl bg-white text-[#1E3A8A] shadow-sm dark:bg-gray-700 dark:text-blue-300"><CheckCircle2 className="h-4 w-4" /></div><div className="text-right"><p className="text-xs font-medium uppercase tracking-wide text-gray-500">Total payable in INR</p><p className="text-xl font-bold text-[#1E3A8A] dark:text-white">{formatCurrency(totalInr)}</p>{form.originalCurrency !== 'INR' && <p className="text-xs text-gray-500">{totalAmount.toFixed(2)} {form.originalCurrency}, including GST</p>}</div></div></div>
-              <div className="mobile-form-actions dark:border-gray-700"><button type="button" onClick={() => setShowForm(false)} className="rounded-lg border px-4 py-2 text-sm dark:border-gray-600">Cancel</button><button disabled={saving || totalInr <= 0} className="brand-primary-button">{saving ? 'Saving…' : 'Save expense'}</button></div>
+              <div className="mobile-form-actions dark:border-gray-700"><button type="button" onClick={() => setShowForm(false)} className="rounded-lg border px-4 py-2 text-sm dark:border-gray-600">Cancel</button><button disabled={saving || totalInr <= 0} className="brand-primary-button">{saving ? 'Saving…' : editingId ? 'Update expense' : 'Save expense'}</button></div>
             </form>
           </div>
         </div>
