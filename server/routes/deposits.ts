@@ -73,4 +73,45 @@ router.post('/', async (req: AuthedRequest, res) => {
   }
 })
 
+router.put('/:id', async (req, res) => {
+  try {
+    const id = Number(req.params.id)
+    const data = req.body
+    const source = String(data.source || '').trim()
+    const originalCurrency = String(data.originalCurrency || 'INR').toUpperCase()
+    const originalAmount = Number(data.originalAmount)
+    const exchangeRate = originalCurrency === 'INR' ? 1 : Number(data.exchangeRate)
+
+    if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ error: 'Invalid deposit' })
+    if (!source) return res.status(400).json({ error: 'Deposit source is required' })
+    if (!supportedCurrencies.has(originalCurrency)) return res.status(400).json({ error: 'Currency must be INR, USD, or EUR' })
+    if (!Number.isFinite(originalAmount) || originalAmount <= 0) return res.status(400).json({ error: 'Deposit amount must be greater than zero' })
+    if (!Number.isFinite(exchangeRate) || exchangeRate <= 0) return res.status(400).json({ error: 'A valid INR exchange rate is required' })
+
+    const existing = await prisma.deposit.findUnique({ where: { id } })
+    if (!existing || existing.status !== 'received') return res.status(404).json({ error: 'Deposit not found' })
+
+    const baseCurrencyAmount = Math.round(originalAmount * exchangeRate * 100) / 100
+    const deposit = await prisma.deposit.update({
+      where: { id },
+      data: {
+        depositDate: data.depositDate ? new Date(data.depositDate) : existing.depositDate,
+        source,
+        description: String(data.description || '').trim() || null,
+        originalCurrency,
+        originalAmount,
+        exchangeRate,
+        baseCurrency: 'INR',
+        baseCurrencyAmount,
+        referenceNumber: String(data.referenceNumber || '').trim() || null,
+        paymentMethod: String(data.paymentMethod || '').trim() || null,
+      },
+    })
+    res.json({ ...deposit, baseCurrencyAmount })
+  } catch (error) {
+    console.error('Update deposit error:', error)
+    res.status(500).json({ error: 'Failed to update deposit' })
+  }
+})
+
 export default router
