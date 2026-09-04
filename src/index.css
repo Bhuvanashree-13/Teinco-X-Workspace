@@ -99,6 +99,10 @@
   .mobile-dialog-header { @apply flex items-start justify-between gap-3 border-b p-4 dark:border-gray-700 sm:p-5; }
   .mobile-dialog-close { @apply grid h-10 w-10 shrink-0 place-items-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 dark:border-gray-700 dark:text-slate-200 dark:hover:bg-gray-700; }
   .mobile-dialog-form { @apply grid flex-1 grid-cols-1 gap-4 overflow-y-auto p-4 pb-6 sm:grid-cols-2 sm:p-5; }
+  .finance-field { @apply text-sm font-medium text-slate-700 dark:text-slate-200; }
+  .finance-input { @apply mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition focus:border-blue-400 focus:ring-4 focus:ring-blue-100 dark:border-gray-600 dark:bg-gray-900 dark:text-white dark:focus:ring-blue-900/30; }
+  .finance-summary { @apply rounded-xl border border-blue-100 bg-gradient-to-br from-blue-50 to-white p-4 dark:border-blue-900/50 dark:from-blue-950/40 dark:to-gray-800; }
+  .finance-stat-card { @apply relative overflow-hidden rounded-xl border border-slate-200 bg-white p-5 shadow-[0_8px_24px_rgba(30,58,138,0.06)] dark:border-gray-700 dark:bg-gray-800; }
   .mobile-form-actions { @apply flex flex-col-reverse gap-2 border-t pt-4 sm:col-span-2 sm:flex-row sm:justify-end sm:gap-3; }
   .mobile-form-actions > button { @apply flex w-full items-center justify-center sm:w-auto; }
   .mobile-tab-strip { @apply -mx-4 flex gap-2 overflow-x-auto border-b border-slate-200 px-4 dark:border-gray-700 sm:mx-0 sm:px-0; }
