@@ -1,9 +1,11 @@
 import { useState, type FormEvent } from 'react'
-import { LockKeyhole, ShieldCheck, UserRound } from 'lucide-react'
+import { LockKeyhole, Moon, ShieldCheck, Sun, UserRound } from 'lucide-react'
 import { useRole } from '../context/RoleContext'
+import { useTheme } from '../hooks/useTheme'
 
 export default function Login() {
   const { login } = useRole()
+  const { resolvedTheme, toggle } = useTheme()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
@@ -23,8 +25,17 @@ export default function Login() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-[#F3F4F6] p-6">
-      <div className="w-full max-w-5xl overflow-hidden rounded-lg border border-slate-200 bg-white shadow-[0_18px_40px_rgba(17,24,39,0.12)]">
+    <div className="relative flex min-h-screen items-center justify-center bg-[#F3F4F6] p-6 dark:bg-gray-900">
+      <button
+        type="button"
+        onClick={toggle}
+        className="absolute right-4 top-4 grid h-10 w-10 place-items-center rounded-lg border border-slate-200 bg-white text-slate-500 shadow-sm transition-colors hover:bg-slate-50 dark:border-gray-700 dark:bg-gray-800 dark:text-amber-300 dark:hover:bg-gray-700"
+        aria-label={resolvedTheme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+        title={resolvedTheme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+      >
+        {resolvedTheme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+      </button>
+      <div className="w-full max-w-5xl overflow-hidden rounded-lg border border-slate-200 bg-white shadow-[0_18px_40px_rgba(17,24,39,0.12)] dark:border-gray-700 dark:bg-gray-800">
         <div className="grid md:grid-cols-[1fr_420px]">
           <div className="bg-[#1E3A8A] p-8 text-white md:p-10">
             <div className="flex items-center gap-3">
@@ -52,39 +63,39 @@ export default function Login() {
           </div>
           <form onSubmit={submit} className="p-8 md:p-10">
             <div className="mb-8">
-              <div className="mb-3 grid h-11 w-11 place-items-center rounded-lg bg-[#EFF6FF] text-[#1E3A8A]">
+              <div className="mb-3 grid h-11 w-11 place-items-center rounded-lg bg-[#EFF6FF] text-[#1E3A8A] dark:bg-blue-950/60 dark:text-blue-300">
                 <LockKeyhole className="h-5 w-5" />
               </div>
               <h2 className="brand-heading text-[28px]">Sign in</h2>
-              <p className="mt-2 text-sm text-slate-500">Use your Teinco-X Workspace account.</p>
+              <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">Use your Teinco-X Workspace account.</p>
             </div>
             <div className="space-y-4">
-              <label className="block text-sm font-medium text-slate-700">
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">
                 Email
                 <input
                   required
                   type="email"
                   value={email}
                   onChange={event => setEmail(event.target.value)}
-                  className="mt-1 w-full rounded-lg border border-slate-200 p-2.5 text-sm focus:ring-[#1E3A8A]"
+                  className="mt-1 w-full rounded-lg border border-slate-200 bg-white p-2.5 text-sm focus:ring-[#1E3A8A] dark:border-gray-600 dark:bg-gray-900 dark:text-white"
                 />
               </label>
-              <label className="block text-sm font-medium text-slate-700">
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">
                 Password
                 <input
                   required
                   type="password"
                   value={password}
                   onChange={event => setPassword(event.target.value)}
-                  className="mt-1 w-full rounded-lg border border-slate-200 p-2.5 text-sm focus:ring-[#1E3A8A]"
+                  className="mt-1 w-full rounded-lg border border-slate-200 bg-white p-2.5 text-sm focus:ring-[#1E3A8A] dark:border-gray-600 dark:bg-gray-900 dark:text-white"
                 />
               </label>
-              {error && <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
+              {error && <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-400">{error}</div>}
               <button disabled={loading} className="brand-primary-button w-full">
                 {loading ? 'Signing in…' : 'Sign in'}
               </button>
             </div>
-            <p className="mt-5 text-xs text-slate-500">Access is provisioned privately by the workspace administrator.</p>
+            <p className="mt-5 text-xs text-slate-500 dark:text-slate-400">Access is provisioned privately by the workspace administrator.</p>
           </form>
         </div>
       </div>

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useApi } from '../hooks/useApi'
 import { Building2, Wallet, Database } from 'lucide-react'
+import { FormSkeleton } from './Skeleton'
 
 export default function Settings() {
   const { data: settings, loading } = useApi('/settings')
@@ -8,8 +9,12 @@ export default function Settings() {
   const [formData, setFormData] = useState<any>({})
 
   if (loading) return (
-    <div className="flex items-center justify-center h-64">
-      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-slate-900" />
+    <div className="space-y-6">
+      <div>
+        <div className="h-8 w-40 animate-pulse rounded-lg bg-slate-200/80 dark:bg-gray-700/60" />
+        <div className="mt-2 h-4 w-80 max-w-full animate-pulse rounded-lg bg-slate-200/80 dark:bg-gray-700/60" />
+      </div>
+      <FormSkeleton />
     </div>
   )
 

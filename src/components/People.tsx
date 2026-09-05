@@ -23,6 +23,8 @@ import {
 } from 'lucide-react'
 import { apiDelete, apiPost, apiPut, formatCurrency, formatDate, useApi } from '../hooks/useApi'
 import { useRole } from '../context/RoleContext'
+import ConfirmDialog from './ConfirmDialog'
+import { useToast } from './Toast'
 
 type Employee = {
   id: number
@@ -285,6 +287,9 @@ function MetricCard({ icon: Icon, label, value, caption }: { icon: any; label: s
 
 export default function People() {
   const { isAdmin, user } = useRole()
+  const toast = useToast()
+  const [pendingDelete, setPendingDelete] = useState<{ type: 'payroll' | 'employee'; item: any } | null>(null)
+  const [deleting, setDeleting] = useState(false)
   const [activeTab, setActiveTab] = useState('directory')
   const [search, setSearch] = useState('')
   const [showCompensation, setShowCompensation] = useState(false)
@@ -512,35 +517,35 @@ export default function People() {
     }
   }
 
-  const deletePayroll = async (batch: PayrollBatch) => {
-    if (!window.confirm(`Delete payroll batch ${batch.batchId}? This removes the batch and its payroll line items.`)) return
-    setSaving(`payroll-delete-${batch.id}`)
-    setMessage('')
-    try {
-      await apiDelete(`/employees/payroll-batches/${batch.id}`)
-      if (selectedPayrollId === batch.id) setSelectedPayrollId(null)
-      if (editingPayrollId === batch.id) setEditingPayrollId(null)
-      setMessage('Payroll batch deleted.')
-      await refreshPeople()
-    } catch (error: any) {
-      setMessage(error.message || 'Could not delete payroll batch.')
-    } finally {
-      setSaving('')
-    }
+  const deletePayroll = (batch: PayrollBatch) => {
+    setPendingDelete({ type: 'payroll', item: batch })
   }
 
-  const removeEmployee = async (employee: Employee) => {
-    if (!window.confirm(`Remove ${employee.name}? This archives the employee profile and disables their login access.`)) return
-    setSaving(`employee-delete-${employee.id}`)
-    setMessage('')
+  const removeEmployee = (employee: Employee) => {
+    setPendingDelete({ type: 'employee', item: employee })
+  }
+
+  const confirmDelete = async () => {
+    if (!pendingDelete) return
+    setDeleting(true)
     try {
-      await apiDelete(`/employees/${employee.id}`)
-      setMessage('Employee removed and login access disabled.')
+      if (pendingDelete.type === 'payroll') {
+        const batch = pendingDelete.item as PayrollBatch
+        await apiDelete(`/employees/payroll-batches/${batch.id}`)
+        if (selectedPayrollId === batch.id) setSelectedPayrollId(null)
+        if (editingPayrollId === batch.id) setEditingPayrollId(null)
+        toast.success('Payroll batch deleted', `${batch.batchId} and its payroll line items were removed.`)
+      } else {
+        const employee = pendingDelete.item as Employee
+        await apiDelete(`/employees/${employee.id}`)
+        toast.success('Employee removed', `${employee.name}'s profile was archived and login access disabled.`)
+      }
+      setPendingDelete(null)
       await refreshPeople()
     } catch (error: any) {
-      setMessage(error.message || 'Could not remove employee.')
+      toast.error('Could not complete this action', error.message || 'Please try again.')
     } finally {
-      setSaving('')
+      setDeleting(false)
     }
   }
 
@@ -1137,6 +1142,26 @@ export default function People() {
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        open={Boolean(pendingDelete)}
+        title={
+          pendingDelete?.type === 'payroll'
+            ? `Delete payroll batch ${pendingDelete.item.batchId}?`
+            : pendingDelete?.type === 'employee'
+              ? `Remove ${pendingDelete.item.name}?`
+              : 'Confirm'
+        }
+        description={
+          pendingDelete?.type === 'payroll'
+            ? 'This removes the batch and its payroll line items. Payroll records affected cannot be restored.'
+            : 'This archives the employee profile and disables their login access.'
+        }
+        confirmLabel={pendingDelete?.type === 'payroll' ? 'Delete batch' : 'Remove employee'}
+        loading={deleting}
+        onConfirm={confirmDelete}
+        onCancel={() => setPendingDelete(null)}
+      />
     </div>
   )
 }

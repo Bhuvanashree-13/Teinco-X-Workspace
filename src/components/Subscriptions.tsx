@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { apiPost, useApi, formatCurrency, formatDate } from '../hooks/useApi'
 import { Calendar, Plus, AlertCircle, CheckCircle2, Clock, RefreshCw, X } from 'lucide-react'
 import { useRole } from '../context/RoleContext'
+import { TableSkeleton } from './Skeleton'
 
 const emptySubscriptionForm = {
   productName: '',
@@ -138,9 +139,7 @@ export default function Subscriptions() {
       </div>
 
       {loading ? (
-        <div className="p-12 text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-slate-900 mx-auto" />
-        </div>
+        <TableSkeleton rows={5} />
       ) : (
         <div className="brand-card overflow-hidden dark:border-gray-700 dark:bg-gray-800">
           <div className="overflow-x-auto">

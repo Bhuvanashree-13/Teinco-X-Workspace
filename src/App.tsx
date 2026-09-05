@@ -13,14 +13,18 @@ import Login from './components/Login'
 import Payslips from './components/Payslips'
 import Deposits from './components/Deposits'
 import { RoleProvider, useRole } from './context/RoleContext'
+import { ToastProvider } from './components/Toast'
 
 function AppRoutes() {
   const { user, loading } = useRole()
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#F3F4F6]">
-        <div className="text-sm font-medium text-[#1E3A8A]">Loading Teinco-X Workspace…</div>
+      <div className="flex min-h-screen items-center justify-center bg-[#F3F4F6] dark:bg-gray-900">
+        <div className="flex flex-col items-center gap-3">
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#1E3A8A]/20 border-t-[#1E3A8A]" />
+          <div className="text-sm font-medium text-[#1E3A8A] dark:text-blue-300">Loading Teinco-X Workspace…</div>
+        </div>
       </div>
     )
   }
@@ -49,7 +53,9 @@ function AppRoutes() {
 function App() {
   return (
     <RoleProvider>
-      <AppRoutes />
+      <ToastProvider>
+        <AppRoutes />
+      </ToastProvider>
     </RoleProvider>
   )
 }

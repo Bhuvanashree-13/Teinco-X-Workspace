@@ -1,8 +1,10 @@
 import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useEffect, useState } from 'react'
 import Sidebar from './Sidebar'
-import { LogOut, Menu, ShieldCheck, UserRound, X } from 'lucide-react'
+import CommandPalette from './CommandPalette'
+import { LogOut, Menu, Moon, Search, ShieldCheck, Sun, UserRound, X } from 'lucide-react'
 import { useRole } from '../context/RoleContext'
+import { useTheme } from '../hooks/useTheme'
 
 const adminOnlyPaths = ['/expenses', '/vendors', '/analytics', '/flow', '/settings']
 
@@ -10,7 +12,9 @@ export default function Layout() {
   const location = useLocation()
   const navigate = useNavigate()
   const { user, role, isAdmin, logout } = useRole()
+  const { resolvedTheme, toggle } = useTheme()
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
+  const [paletteOpen, setPaletteOpen] = useState(false)
   const isPeople = location.pathname.startsWith('/people')
   const isPayslips = location.pathname.startsWith('/payslips')
   const isSchedule = location.pathname.startsWith('/schedule')
@@ -34,6 +38,17 @@ export default function Layout() {
       navigate('/people', { replace: true })
     }
   }, [isAdmin, location.pathname, navigate])
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault()
+        setPaletteOpen(current => !current)
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [])
 
   useEffect(() => {
     setMobileNavOpen(false)
@@ -76,19 +91,48 @@ export default function Layout() {
                 <Menu className="h-5 w-5" />
               </button>
               <div className="min-w-0">
-                <span className="block truncate font-heading text-xs font-semibold uppercase tracking-[0.12em] text-[#1E3A8A]">{workspace.name}</span>
+                <span className="block truncate font-heading text-xs font-semibold uppercase tracking-[0.12em] text-[#1E3A8A] dark:text-blue-300">{workspace.name}</span>
                 <span className="block truncate text-xs font-medium text-[#6B7280] dark:text-slate-300">{workspace.description}</span>
               </div>
             </div>
             <div className="flex shrink-0 items-center gap-2 sm:gap-3">
-              <div className="hidden items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs sm:flex">
-              {role === 'admin' ? <ShieldCheck className="h-3.5 w-3.5 text-[#1E3A8A]" /> : <UserRound className="h-3.5 w-3.5 text-[#1E3A8A]" />}
+              <button
+                type="button"
+                onClick={() => setPaletteOpen(true)}
+                className="hidden h-10 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-xs font-medium text-slate-500 shadow-sm transition-colors hover:bg-slate-50 dark:border-gray-700 dark:bg-gray-800 dark:text-slate-300 dark:hover:bg-gray-700 sm:flex"
+                aria-label="Quick navigation"
+              >
+                <Search className="h-3.5 w-3.5" />
+                <span>Search</span>
+                <kbd className="rounded border border-slate-200 bg-slate-50 px-1.5 py-0.5 font-sans text-[10px] font-medium text-slate-400 dark:border-gray-600 dark:bg-gray-700 dark:text-slate-400">
+                  {navigator.platform.includes('Mac') ? '⌘K' : 'Ctrl K'}
+                </kbd>
+              </button>
+              <button
+                type="button"
+                onClick={() => setPaletteOpen(true)}
+                className="grid h-10 w-10 place-items-center rounded-lg border border-slate-200 bg-white text-slate-500 shadow-sm sm:hidden"
+                aria-label="Quick navigation"
+              >
+                <Search className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                onClick={toggle}
+                className="grid h-10 w-10 place-items-center rounded-lg border border-slate-200 bg-white text-slate-500 shadow-sm transition-colors hover:bg-slate-50 dark:border-gray-700 dark:bg-gray-800 dark:text-amber-300 dark:hover:bg-gray-700"
+                aria-label={resolvedTheme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+                title={resolvedTheme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+              >
+                {resolvedTheme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+              </button>
+              <div className="hidden items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs sm:flex dark:border-gray-700 dark:bg-gray-800">
+              {role === 'admin' ? <ShieldCheck className="h-3.5 w-3.5 text-[#1E3A8A] dark:text-blue-300" /> : <UserRound className="h-3.5 w-3.5 text-[#1E3A8A] dark:text-blue-300" />}
               <div>
-                <p className="max-w-[160px] truncate font-semibold text-[#1E3A8A] lg:max-w-[220px]">{user?.name || user?.email}</p>
-                <p className="capitalize text-slate-500">{role}</p>
+                <p className="max-w-[160px] truncate font-semibold text-[#1E3A8A] lg:max-w-[220px] dark:text-white">{user?.name || user?.email}</p>
+                <p className="capitalize text-slate-500 dark:text-slate-400">{role}</p>
               </div>
             </div>
-            <button type="button" onClick={logout} className="grid h-10 w-10 place-items-center rounded-lg border border-slate-200 text-xs font-medium text-slate-600 hover:bg-slate-50 sm:flex sm:w-auto sm:gap-1.5 sm:px-3 sm:py-2">
+            <button type="button" onClick={logout} className="grid h-10 w-10 place-items-center rounded-lg border border-slate-200 text-xs font-medium text-slate-600 hover:bg-slate-50 dark:border-gray-700 dark:bg-gray-800 dark:text-slate-300 dark:hover:bg-gray-700 sm:flex sm:w-auto sm:gap-1.5 sm:px-3 sm:py-2">
               <LogOut className="h-3.5 w-3.5" />
               <span className="hidden sm:inline">Logout</span>
             </button>
@@ -100,6 +144,7 @@ export default function Layout() {
           <Outlet />
         </main>
       </div>
+      <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
     </div>
   )
 }

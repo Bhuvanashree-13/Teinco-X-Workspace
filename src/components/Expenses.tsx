@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { apiDelete, apiPost, apiPut, useApi, formatCurrency, formatDate } from '../hooks/useApi'
 import { Search, Filter, Plus, Download, ChevronLeft, ChevronRight, FileText, X, ReceiptIndianRupee, Calculator, CheckCircle2, Pencil, Trash2, RefreshCw } from 'lucide-react'
+import ConfirmDialog from './ConfirmDialog'
+import { useToast } from './Toast'
 
 const emptyForm = {
   expenseDate: new Date().toISOString().slice(0, 10), vendorId: '', description: '', categoryId: '',
@@ -18,6 +20,7 @@ const buildCategoryOptions = (categories: any[] = []) => categories
   .sort((a, b) => a.label.localeCompare(b.label))
 
 export default function Expenses() {
+  const toast = useToast()
   const [page, setPage] = useState(1)
   const [search, setSearch] = useState('')
   const [expenseType, setExpenseType] = useState('')
@@ -25,8 +28,8 @@ export default function Expenses() {
   const [editingId, setEditingId] = useState<number | null>(null)
   const [form, setForm] = useState(emptyForm)
   const [saving, setSaving] = useState(false)
-  const [message, setMessage] = useState('')
-  const [messageType, setMessageType] = useState<'success' | 'error'>('success')
+  const [deleting, setDeleting] = useState(false)
+  const [pendingDelete, setPendingDelete] = useState<any | null>(null)
   const [rateLoading, setRateLoading] = useState(false)
   const [rateError, setRateError] = useState('')
   const [rateDate, setRateDate] = useState('')
@@ -108,25 +111,26 @@ export default function Expenses() {
     setShowForm(true)
   }
 
-  const removeExpense = async (expense: any) => {
-    if (!window.confirm(`Remove expense ${expense.expenseId}? It will be hidden from the active ledger.`)) return
-    setSaving(true)
-    setMessage('')
+  const removeExpense = (expense: any) => {
+    setPendingDelete(expense)
+  }
+
+  const confirmDelete = async () => {
+    if (!pendingDelete) return
+    setDeleting(true)
     try {
-      await apiDelete(`/expenses/${expense.id}`)
-      setMessageType('success')
-      setMessage('Expense removed successfully.')
+      await apiDelete(`/expenses/${pendingDelete.id}`)
+      toast.success('Expense removed', `${pendingDelete.expenseId} was hidden from the active ledger.`)
+      setPendingDelete(null)
       await refetch()
     } catch (error: any) {
-      setMessageType('error')
-      setMessage(error.message || 'Could not remove expense.')
-    } finally { setSaving(false) }
+      toast.error('Could not remove expense', error.message || 'Please try again.')
+    } finally { setDeleting(false) }
   }
 
   const submitExpense = async (event: React.FormEvent) => {
     event.preventDefault()
     setSaving(true)
-    setMessage('')
     try {
       const payload = {
         expenseDate: new Date(`${form.expenseDate}T12:00:00`).toISOString(),
@@ -136,18 +140,17 @@ export default function Expenses() {
         businessPurpose: form.businessPurpose || null, invoiceNumber: form.invoiceNumber || null,
         taxDeductible: form.taxDeductible, gstInputCredit: form.gstInputCredit,
       }
+      const wasEditing = Boolean(editingId)
       if (editingId) await apiPut(`/expenses/${editingId}`, payload)
       else await apiPost('/expenses', payload)
       setForm(emptyForm)
       setEditingId(null)
       setShowForm(false)
-      setMessageType('success')
-      setMessage(editingId ? 'Expense updated successfully.' : 'Expense recorded successfully.')
+      toast.success(wasEditing ? 'Expense updated' : 'Expense recorded', wasEditing ? 'Changes saved to the ledger.' : `${formatCurrency(totalInr)} was recorded in the ledger.`)
       setPage(1)
       await refetch()
     } catch (error: any) {
-      setMessageType('error')
-      setMessage(error.message || 'Could not save expense.')
+      toast.error('Could not save expense', error.message || 'Please try again.')
     } finally { setSaving(false) }
   }
 
@@ -159,6 +162,7 @@ export default function Expenses() {
     const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }))
     const link = document.createElement('a'); link.href = url; link.download = `expenses-${new Date().toISOString().slice(0, 10)}.csv`; link.click()
     URL.revokeObjectURL(url)
+    toast.success('Export ready', `Downloaded ${expenses.length} expense rows as CSV.`)
   }
 
   return (
@@ -177,12 +181,6 @@ export default function Expenses() {
           </button>
         </div>
       </div>
-
-      {message && <div className={`rounded-lg border px-4 py-3 text-sm ${
-        messageType === 'success'
-          ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
-          : 'border-red-200 bg-red-50 text-red-800'
-      }`}>{message}</div>}
 
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="finance-stat-card"><div className="flex items-start justify-between"><div><p className="brand-label">Recorded expenses</p><p className="mt-2 text-2xl font-semibold text-slate-900 dark:text-white">{total}</p><p className="mt-1 text-xs text-slate-500">Active ledger transactions</p></div><div className="rounded-xl bg-blue-50 p-3 text-[#1E3A8A] dark:bg-blue-900/30 dark:text-blue-300"><ReceiptIndianRupee className="h-5 w-5" /></div></div></div>
@@ -211,9 +209,16 @@ export default function Expenses() {
         </div>
 
         {loading ? (
-          <div className="p-12 text-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-slate-900 mx-auto" />
-            <p className="text-gray-500 mt-3 text-sm">Loading expenses...</p>
+          <div className="space-y-1 p-6">
+            {Array.from({ length: 6 }).map((_, index) => (
+              <div key={index} className="flex items-center gap-4 py-3">
+                <div className="h-3.5 w-24 animate-pulse rounded bg-slate-200/80 dark:bg-gray-700/60" />
+                <div className="h-3.5 w-20 animate-pulse rounded bg-slate-200/80 dark:bg-gray-700/60" />
+                <div className="hidden h-3.5 w-28 animate-pulse rounded bg-slate-200/80 dark:bg-gray-700/60 sm:block" />
+                <div className="hidden h-3.5 flex-1 animate-pulse rounded bg-slate-200/80 dark:bg-gray-700/60 md:block" />
+                <div className="ml-auto h-3.5 w-24 animate-pulse rounded bg-slate-200/80 dark:bg-gray-700/60" />
+              </div>
+            ))}
           </div>
         ) : (
           <>
@@ -257,7 +262,7 @@ export default function Expenses() {
                         </span>
                       </td>
                       <td className="px-4 py-3 text-right font-semibold text-gray-900 dark:text-white whitespace-nowrap">{formatCurrency(exp.baseCurrencyAmount)}</td>
-                      <td className="px-4 py-3 whitespace-nowrap">{exp.payrollBatchId ? <div className="text-right text-xs font-medium text-slate-400">Managed in Payroll</div> : <div className="flex justify-end gap-2"><button type="button" onClick={() => openEdit(exp)} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-[#1E3A8A] transition hover:border-blue-300 hover:bg-blue-50 dark:border-gray-600 dark:text-blue-300 dark:hover:bg-blue-900/30"><Pencil className="h-3.5 w-3.5" /> Edit</button><button type="button" onClick={() => removeExpense(exp)} disabled={saving} className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 px-2.5 py-1.5 text-xs font-medium text-red-600 transition hover:bg-red-50 disabled:opacity-50 dark:border-red-900/60 dark:text-red-400 dark:hover:bg-red-900/20"><Trash2 className="h-3.5 w-3.5" /> Remove</button></div>}</td>
+                      <td className="px-4 py-3 whitespace-nowrap">{exp.payrollBatchId ? <div className="text-right text-xs font-medium text-slate-400">Managed in Payroll</div> : <div className="flex justify-end gap-2"><button type="button" onClick={() => openEdit(exp)} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-[#1E3A8A] transition hover:border-blue-300 hover:bg-blue-50 dark:border-gray-600 dark:text-blue-300 dark:hover:bg-blue-900/30"><Pencil className="h-3.5 w-3.5" /> Edit</button>                    <button type="button" onClick={() => removeExpense(exp)} disabled={deleting} className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 px-2.5 py-1.5 text-xs font-medium text-red-600 transition hover:bg-red-50 disabled:opacity-50 dark:border-red-900/60 dark:text-red-400 dark:hover:bg-red-900/20"><Trash2 className="h-3.5 w-3.5" /> Remove</button></div>}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -293,6 +298,16 @@ export default function Expenses() {
           </>
         )}
       </div>
+
+      <ConfirmDialog
+        open={Boolean(pendingDelete)}
+        title={pendingDelete ? `Remove expense ${pendingDelete.expenseId}?` : 'Remove expense'}
+        description="This hides the expense from the active ledger. The record is retained in the audit trail."
+        confirmLabel="Remove expense"
+        loading={deleting}
+        onConfirm={confirmDelete}
+        onCancel={() => setPendingDelete(null)}
+      />
 
       {showForm && (
         <div className="mobile-dialog-overlay" onMouseDown={() => setShowForm(false)}>

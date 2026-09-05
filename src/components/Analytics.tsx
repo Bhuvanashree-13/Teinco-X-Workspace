@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useApi, formatCurrency } from '../hooks/useApi'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts'
 import { BarChart3, PieChart as PieIcon, Building2 } from 'lucide-react'
+import { ChartSkeleton } from './Skeleton'
 
 export default function Analytics() {
   const [activeTab, setActiveTab] = useState('category')
@@ -173,9 +174,11 @@ export default function Analytics() {
 
 function LoadingState() {
   return (
-    <div className="p-12 text-center">
-      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-slate-900 mx-auto" />
-      <p className="text-gray-500 mt-3 text-sm">Loading analytics...</p>
+    <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+      <div className="brand-card p-6 dark:border-gray-700 dark:bg-gray-800"><ChartSkeleton /></div>
+      <div className="brand-card p-6 dark:border-gray-700 dark:bg-gray-800"><ChartSkeleton /></div>
+      <div className="brand-card p-6 dark:border-gray-700 dark:bg-gray-800"><ChartSkeleton /></div>
+      <div className="brand-card p-6 dark:border-gray-700 dark:bg-gray-800"><ChartSkeleton /></div>
     </div>
   )
 }

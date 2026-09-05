@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { apiPost, useApi } from '../hooks/useApi'
 import { Search, Plus, Store, TrendingUp, ArrowUpRight, Receipt, X } from 'lucide-react'
+import { CardGridSkeleton } from './Skeleton'
 
 const emptyVendorForm = {
   name: '',
@@ -87,9 +88,7 @@ export default function Vendors() {
       </div>
 
       {loading ? (
-        <div className="p-12 text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-slate-900 mx-auto" />
-        </div>
+        <CardGridSkeleton count={6} />
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {vendors.map((vendor: any) => (

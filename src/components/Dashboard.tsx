@@ -1,6 +1,7 @@
 import { useApi, formatCurrency } from '../hooks/useApi'
 import { TrendingUp, TrendingDown, Wallet, CreditCard, Users, Server, Monitor, ArrowUpRight, Activity, Zap, HardDrive, Landmark, ArrowDownToLine } from 'lucide-react'
 import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, AreaChart, Area } from 'recharts'
+import { StatCardsSkeleton, ChartSkeleton, Skeleton } from './Skeleton'
 
 interface DashboardData {
   currentMonthSpend: number
@@ -27,8 +28,21 @@ export default function Dashboard() {
   const { data, loading } = useApi<DashboardData>('/dashboard/kpi')
 
   if (loading) return (
-    <div className="flex items-center justify-center h-64">
-      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-slate-900" />
+    <div className="space-y-6">
+      <div>
+        <Skeleton className="h-8 w-64" />
+        <Skeleton className="mt-2 h-4 w-96 max-w-full" />
+      </div>
+      <StatCardsSkeleton count={8} />
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        <div className="brand-card p-6 dark:border-gray-700 dark:bg-gray-800 lg:col-span-2">
+          <ChartSkeleton />
+        </div>
+        <div className="brand-card p-6 dark:border-gray-700 dark:bg-gray-800">
+          <Skeleton className="mb-4 h-5 w-40" />
+          <Skeleton className="h-56 w-full" />
+        </div>
+      </div>
     </div>
   )
   if (!data) return <div className="text-red-500 p-8">Failed to load dashboard data</div>
