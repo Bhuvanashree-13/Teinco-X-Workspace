@@ -36,6 +36,28 @@ This starts:
 
 Open your browser to **http://localhost:5173**
 
+### Mobile app (iOS and Android)
+
+The bare React Native client lives in `mobile/` and connects to the same Express API and MySQL database as the web app. The production Railway API URL is built into the client.
+
+```bash
+npm run mobile:dev
+```
+
+Use `npm run mobile:android` to compile and install a development build on an emulator or USB-connected device. Admins receive dashboard, expense, and subscription access. Employees receive their privacy-scoped workspace view and shared subscription access. JWT credentials are stored in the native Android Keystore/iOS Keychain.
+
+#### Build a standalone Android APK
+
+The release APK runs independently after installation; no cloud build account, QR code, or Metro development server is required. Install JDK 17 and Android Studio with the Android SDK first, then set `JAVA_HOME` and `ANDROID_HOME`.
+
+```bash
+cd mobile
+npm install
+npm run build:apk
+```
+
+The APK is generated locally at `mobile/android/app/build/outputs/apk/release/app-release.apk`. The checked-in native template currently uses its development keystore for local internal distribution; configure a private release keystore before Play Store or public distribution.
+
 ---
 
 ## 🔐 Access Provisioning
@@ -342,7 +364,7 @@ For desktop packaging, consider:
 4. **"Ask Finance"** — Natural language queries via LLM
 5. **Advanced database backups** — Automated managed database snapshots
 6. **GST Export** — GSTR-ready Excel output
-7. **Mobile App** — React Native companion
+7. **Mobile expansion** — Notifications, offline caching, and receipt capture
 
 ---
 

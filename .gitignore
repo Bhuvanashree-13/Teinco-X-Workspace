@@ -1,5 +1,6 @@
 # Dependencies
 node_modules/
+.bare-scaffold/
 
 # Build outputs
 dist/
@@ -22,6 +23,9 @@ backups/
 .idea/
 *.swp
 *.swo
+
+# Tool state
+.freebuff/
 
 # OS
 .DS_Store
