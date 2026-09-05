@@ -524,6 +524,7 @@ model PayrollBatchEmployee {
   bonus                 Decimal      @default(0)
   deductions            Decimal      @default(0)
   netPay                Decimal      @default(0)
+  paymentUtr            String? // UTR / transaction reference from the salary bank transfer
 
   @@unique([payrollBatchId, employeeId])
   @@index([employeeId])

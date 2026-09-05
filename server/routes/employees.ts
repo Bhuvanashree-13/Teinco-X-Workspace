@@ -63,6 +63,7 @@ const serializePayslip = (line: any) => {
     status: line.payrollBatch.status,
     issueDate: line.payrollBatch.updatedAt,
     notes: line.payrollBatch.notes,
+    paymentUtr: line.paymentUtr ?? null,
     employee: serializeEmployee(line.employee),
     earnings: [
       { label: 'Base pay', amount: basePay },
@@ -569,6 +570,32 @@ router.get('/payslips', async (req: AuthedRequest, res) => {
   } catch (error) {
     console.error('Payslip list error:', error)
     res.status(500).json({ error: 'Failed to load payslips' })
+  }
+})
+
+router.put('/payslips/:id/payment-reference', async (req: AuthedRequest, res) => {
+  try {
+    const lineId = Number(req.params.id)
+    const rawValue = typeof req.body?.paymentReference === 'string' ? req.body.paymentReference.trim() : ''
+    if (rawValue.length > 60) {
+      return res.status(400).json({ error: 'UTR / transaction ID must be 60 characters or fewer' })
+    }
+
+    const existing = await prisma.payrollBatchEmployee.findUnique({ where: { id: lineId } })
+    if (!existing) return res.status(404).json({ error: 'Payslip not found' })
+    if (!isAdmin(req) && existing.employeeId !== req.user?.employeeId) {
+      return res.status(403).json({ error: 'You can only update your own payslips' })
+    }
+
+    const updated = await prisma.payrollBatchEmployee.update({
+      where: { id: lineId },
+      data: { paymentUtr: rawValue || null },
+      include: { employee: true, payrollBatch: true },
+    })
+    res.json(serializePayslip(updated))
+  } catch (error) {
+    console.error('Payslip payment reference error:', error)
+    res.status(500).json({ error: 'Failed to save the payment reference' })
   }
 })
 

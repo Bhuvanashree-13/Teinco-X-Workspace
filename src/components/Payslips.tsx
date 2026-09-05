@@ -1,7 +1,8 @@
-import { useMemo, useState } from 'react'
-import { BadgeIndianRupee, CalendarDays, FileText, Printer, ShieldCheck } from 'lucide-react'
-import { formatCurrency, formatDate, useApi } from '../hooks/useApi'
+import { useEffect, useMemo, useState } from 'react'
+import { BadgeIndianRupee, CalendarDays, FileText, Landmark, Printer, ShieldCheck } from 'lucide-react'
+import { apiPut, formatCurrency, formatDate, useApi } from '../hooks/useApi'
 import { useRole } from '../context/RoleContext'
+import { useToast } from './Toast'
 
 type PayslipLine = {
   label: string
@@ -17,6 +18,7 @@ type Payslip = {
   status: string
   issueDate: string
   notes?: string | null
+  paymentUtr?: string | null
   employee: {
     employeeId: string
     name: string
@@ -72,6 +74,7 @@ const templatePlaceholder: Payslip = {
   periodEnd: new Date().toISOString(),
   status: 'template',
   issueDate: new Date().toISOString(),
+  paymentUtr: null,
   employee: {
     employeeId: 'EMP-000001',
     name: 'Employee Name',
@@ -97,7 +100,7 @@ function InfoRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="grid grid-cols-[130px_1fr] gap-2">
       <span className="font-semibold text-[#1E3A8A]">{label}</span>
-      <span className="font-semibold">: {value}</span>
+      <span className="font-semibold break-words">: {value}</span>
     </div>
   )
 }
@@ -142,6 +145,7 @@ function PayslipTemplate({ payslip, isPlaceholder = false }: { payslip: Payslip;
           <InfoRow label="Designation" value={payslip.employee.role || '-'} />
           <InfoRow label="Employment Type" value={payslip.employee.employmentType.replace(/_/g, ' ')} />
           <InfoRow label="Payroll Batch" value={payslip.batchId} />
+          <InfoRow label="UTR / Tx ID" value={payslip.paymentUtr || '-'} />
           <InfoRow label="Status" value={payslip.status} />
         </div>
       </div>
@@ -189,14 +193,40 @@ function PayslipTemplate({ payslip, isPlaceholder = false }: { payslip: Payslip;
 
 export default function Payslips() {
   const { isAdmin } = useRole()
-  const { data, loading, error } = useApi<Payslip[]>('/employees/payslips')
+  const toast = useToast()
+  const { data, loading, error, refetch } = useApi<Payslip[]>('/employees/payslips')
   const payslips = data || []
   const [selectedId, setSelectedId] = useState<number | null>(null)
+  const [utr, setUtr] = useState('')
+  const [savingUtr, setSavingUtr] = useState(false)
   const selectedPayslip = useMemo(
     () => payslips.find(payslip => payslip.id === selectedId) || payslips[0] || templatePlaceholder,
     [payslips, selectedId]
   )
   const hasRealPayslip = payslips.length > 0
+
+  useEffect(() => {
+    setUtr(selectedPayslip.paymentUtr || '')
+  }, [selectedPayslip.id, selectedPayslip.paymentUtr])
+
+  const utrChanged = utr.trim() !== (selectedPayslip.paymentUtr || '')
+
+  const savePaymentReference = async () => {
+    if (!hasRealPayslip || selectedPayslip.id === 0) return
+    setSavingUtr(true)
+    try {
+      const saved = await apiPut(`/employees/payslips/${selectedPayslip.id}/payment-reference`, { paymentReference: utr })
+      toast.success(
+        saved.paymentUtr ? 'Payment reference added' : 'Payment reference removed',
+        saved.paymentUtr ? 'Your UTR / transaction ID now prints on this payslip.' : 'The reference was cleared from this payslip.'
+      )
+      await refetch()
+    } catch (saveError: any) {
+      toast.error('Could not save payment reference', saveError.message || 'Please try again.')
+    } finally {
+      setSavingUtr(false)
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -204,7 +234,9 @@ export default function Payslips() {
         <div>
           <h2 className="brand-heading">Employee Payslips</h2>
           <p className="brand-caption mt-1">
-            {isAdmin ? 'Review printable payslip templates generated from payroll batches.' : 'View and print your own payroll slips.'}
+            {isAdmin
+              ? 'Review printable payslip templates generated from payroll batches.'
+              : 'View and print your payslips, and add the salary transfer UTR / transaction ID to each one.'}
           </p>
         </div>
         <button
@@ -268,7 +300,7 @@ export default function Payslips() {
 
           <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
             <div className="flex items-center gap-2 font-semibold text-[#1E3A8A]"><ShieldCheck className="h-4 w-4" /> Privacy rule</div>
-            <p className="mt-2">Admins can review all payslips. Employees can only see payslips linked to their own employee login.</p>
+            <p className="mt-2">Admins can review all payslips. Employees can only see payslips linked to their own employee login and add the UTR / transaction ID to their own slips.</p>
           </div>
         </aside>
 
@@ -276,6 +308,40 @@ export default function Payslips() {
           {!hasRealPayslip && (
             <div className="no-print mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
               Showing the blank Teinco-X payslip template. It will fill with real employee payroll data after a payroll batch is created.
+            </div>
+          )}
+          {!isAdmin && hasRealPayslip && (
+            <div className="no-print mb-4 rounded-lg border border-blue-200 bg-white p-4 shadow-sm dark:border-blue-900/50 dark:bg-gray-800">
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+                <div className="flex items-start gap-3 lg:flex-1">
+                  <div className="rounded-lg bg-[#EFF6FF] p-2 text-[#1E3A8A] dark:bg-blue-900/30 dark:text-blue-300"><Landmark className="h-5 w-5" /></div>
+                  <div>
+                    <h3 className="font-semibold text-slate-900 dark:text-white">Payment reference (UTR / transaction ID)</h3>
+                    <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">
+                      Enter the UTR or transaction ID from the salary bank credit for {periodLabel(selectedPayslip.periodStart)}. It prints on this payslip under “UTR / Tx ID”.
+                    </p>
+                  </div>
+                </div>
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                  <input
+                    type="text"
+                    value={utr}
+                    onChange={event => setUtr(event.target.value)}
+                    placeholder="e.g. N2651A2B3C4D5E6F7"
+                    maxLength={60}
+                    spellCheck={false}
+                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 font-mono text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-600 dark:border-gray-600 dark:bg-gray-900 dark:text-white sm:w-64"
+                  />
+                  <button
+                    type="button"
+                    onClick={savePaymentReference}
+                    disabled={savingUtr || !utrChanged}
+                    className="brand-primary-button whitespace-nowrap disabled:cursor-not-allowed"
+                  >
+                    {savingUtr ? 'Saving…' : selectedPayslip.paymentUtr ? 'Update reference' : 'Add to payslip'}
+                  </button>
+                </div>
+              </div>
             </div>
           )}
           <PayslipTemplate payslip={selectedPayslip} isPlaceholder={!hasRealPayslip} />
