@@ -3,6 +3,8 @@ import { prisma } from '../db.js'
 import { startOfMonth, endOfMonth, startOfYear, endOfYear, subMonths, format } from 'date-fns'
 import { requireAdmin, requireAuth } from '../middleware/auth.js'
 
+import { categoryBreakdownFor } from '../lib/dashboard-categories.js'
+
 const router = Router()
 
 router.use(requireAuth, requireAdmin)
@@ -104,60 +106,12 @@ router.get('/kpi', async (req, res) => {
       _sum: { baseCurrencyAmount: true }
     })
 
-    const categories = await prisma.expenseCategory.findMany({
-      where: { parentId: null, isActive: true }
-    })
-
-    const categoryMap = new Map(categories.map(c => [c.id, c]))
-    const categoryBreakdown = categorySpend.map(cs => ({
-      category: categoryMap.get(cs.categoryId)?.name || 'Unknown',
-      color: categoryMap.get(cs.categoryId)?.color || '#6b7280',
-      amount: Number(cs._sum.baseCurrencyAmount) || 0
-    })).sort((a, b) => b.amount - a.amount)
-
-    // Software spend
-    const softwareCategory = categories.find(c => c.code === 'SOFTWARE')
-    const softwareSpend = softwareCategory ? await prisma.expense.aggregate({
-      where: {
-        categoryId: softwareCategory.id,
-        expenseDate: { gte: currentYearStart, lte: currentYearEnd },
-        status: 'active'
-      },
-      _sum: { baseCurrencyAmount: true }
-    }) : { _sum: { baseCurrencyAmount: 0 } }
-
-    // Cloud spend
-    const cloudCategory = categories.find(c => c.code === 'CLOUD')
-    const cloudSpend = cloudCategory ? await prisma.expense.aggregate({
-      where: {
-        categoryId: cloudCategory.id,
-        expenseDate: { gte: currentYearStart, lte: currentYearEnd },
-        status: 'active'
-      },
-      _sum: { baseCurrencyAmount: true }
-    }) : { _sum: { baseCurrencyAmount: 0 } }
-
-    // Hardware spend
-    const hardwareCategory = categories.find(c => c.code === 'HARDWARE')
-    const hardwareSpend = hardwareCategory ? await prisma.expense.aggregate({
-      where: {
-        categoryId: hardwareCategory.id,
-        expenseDate: { gte: currentYearStart, lte: currentYearEnd },
-        status: 'active'
-      },
-      _sum: { baseCurrencyAmount: true }
-    }) : { _sum: { baseCurrencyAmount: 0 } }
-
-    // People spend
-    const peopleCategory = categories.find(c => c.code === 'PEOPLE')
-    const peopleSpend = peopleCategory ? await prisma.expense.aggregate({
-      where: {
-        categoryId: peopleCategory.id,
-        expenseDate: { gte: currentYearStart, lte: currentYearEnd },
-        status: 'active'
-      },
-      _sum: { baseCurrencyAmount: true }
-    }) : { _sum: { baseCurrencyAmount: 0 } }
+    // Include child and archived categories: historical expenses retain their classification.
+    const categories = await prisma.expenseCategory.findMany()
+    const categoryBreakdown = categoryBreakdownFor(categorySpend, categories)
+    const spendFor = (code: string) => categoryBreakdown
+      .filter(category => category.code === code)
+      .reduce((total, category) => total + category.amount, 0)
 
     // Upcoming expenses (next 30 days)
     const upcomingDate = new Date()
@@ -196,10 +150,10 @@ router.get('/kpi', async (req, res) => {
       monthlyAverage: Math.round(monthlyAverage),
       recurringMonthlyCommitment: Number(recurringMonthly._sum.baseCurrencyAmount) || 0,
       recurringAnnualCommitment: (Number(recurringMonthly._sum.baseCurrencyAmount) || 0) * 12 + (Number(recurringYearly._sum.baseCurrencyAmount) || 0),
-      softwareSpend: Number(softwareSpend._sum.baseCurrencyAmount) || 0,
-      cloudSpend: Number(cloudSpend._sum.baseCurrencyAmount) || 0,
-      hardwareSpend: Number(hardwareSpend._sum.baseCurrencyAmount) || 0,
-      peopleSpend: Number(peopleSpend._sum.baseCurrencyAmount) || 0,
+      softwareSpend: spendFor('SOFTWARE'),
+      cloudSpend: spendFor('CLOUD'),
+      hardwareSpend: spendFor('HARDWARE'),
+      peopleSpend: spendFor('PEOPLE'),
       categoryBreakdown,
       upcomingExpenses: upcomingExpenses.map(e => ({
         id: e.id,

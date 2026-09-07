@@ -21,7 +21,8 @@
     "db:studio": "prisma studio",
     "postinstall": "node scripts/prisma-generate.mjs",
     "test:auth": "tsx --test tests/google-auth.test.ts",
-    "test:schema": "node --test tests/google-schema.test.mjs"
+    "test:schema": "node --test tests/google-schema.test.mjs",
+    "test:dashboard": "tsx --test tests/dashboard-categories.test.ts"
   },
   "dependencies": {
     "@prisma/client": "^5.15.0",

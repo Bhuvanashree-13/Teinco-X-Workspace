@@ -1,6 +1,7 @@
+import { useState } from 'react'
 import { useApi, formatCurrency } from '../hooks/useApi'
 import { TrendingUp, TrendingDown, Wallet, CreditCard, Users, Server, Monitor, ArrowUpRight, Activity, Zap, HardDrive, Landmark, ArrowDownToLine } from 'lucide-react'
-import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, AreaChart, Area } from 'recharts'
+import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Cell } from 'recharts'
 import { StatCardsSkeleton, ChartSkeleton, Skeleton } from './Skeleton'
 
 interface DashboardData {
@@ -15,7 +16,7 @@ interface DashboardData {
   cloudSpend: number
   hardwareSpend: number
   peopleSpend: number
-  categoryBreakdown: Array<{ category: string; color: string; amount: number }>
+  categoryBreakdown: Array<{ categoryId: number | null; category: string; color: string; amount: number }>
   upcomingExpenses: Array<any>
   monthlyTrend: Array<{ month: string; amount: number }>
   totalExpenses: number
@@ -25,6 +26,8 @@ interface DashboardData {
 }
 
 export default function Dashboard() {
+  const [trendMonths, setTrendMonths] = useState(6)
+  const [showAllCategories, setShowAllCategories] = useState(false)
   const { data, loading } = useApi<DashboardData>('/dashboard/kpi')
 
   if (loading) return (
@@ -46,6 +49,13 @@ export default function Dashboard() {
     </div>
   )
   if (!data) return <div className="text-red-500 p-8">Failed to load dashboard data</div>
+
+  const trend = data.monthlyTrend.slice(-trendMonths)
+  const trendTotal = trend.reduce((total, month) => total + month.amount, 0)
+  const categories = data.categoryBreakdown.filter(category => category.amount !== 0)
+  const categoryTotal = categories.reduce((total, category) => total + category.amount, 0)
+  const categoryScale = Math.max(...categories.map(category => Math.abs(category.amount)), 1)
+  const visibleCategories = showAllCategories ? categories : categories.slice(0, 5)
 
   const momChange = data.previousMonthSpend > 0 
     ? ((data.currentMonthSpend - data.previousMonthSpend) / data.previousMonthSpend * 100).toFixed(1)
@@ -173,65 +183,58 @@ export default function Dashboard() {
         ))}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 brand-card p-6 dark:border-gray-700 dark:bg-gray-800">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="brand-section-heading">Monthly Spend Trend</h3>
-            <span className="brand-caption">Last 12 months</span>
+      <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-2">
+        <div className="brand-card min-w-0 p-5 dark:border-gray-700 dark:bg-gray-800 sm:p-6">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h3 className="brand-section-heading">Monthly Spend</h3>
+              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Monthly totals · current month in progress</p>
+            </div>
+            <div className="flex rounded-lg bg-slate-100 p-1 dark:bg-gray-900" aria-label="Monthly spend period">
+              {[6, 12].map(months => <button key={months} type="button" aria-pressed={trendMonths === months} onClick={() => setTrendMonths(months)} className={`rounded-md px-3 py-1 text-xs font-medium ${trendMonths === months ? 'bg-white text-blue-800 shadow-sm dark:bg-gray-700 dark:text-white' : 'text-slate-500 dark:text-slate-400'}`}>{months} months</button>)}
+            </div>
           </div>
-          <ResponsiveContainer width="100%" height={320}>
-            <AreaChart data={data.monthlyTrend}>
-              <defs>
-                <linearGradient id="colorAmount" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#60A5FA" stopOpacity={0.18}/>
-                  <stop offset="95%" stopColor="#60A5FA" stopOpacity={0}/>
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-              <XAxis dataKey="month" tick={{ fontSize: 12 }} stroke="#9ca3af" />
-              <YAxis tickFormatter={(v) => `₹${(v/1000).toFixed(0)}K`} tick={{ fontSize: 12 }} stroke="#9ca3af" />
-              <Tooltip 
-                formatter={(v: number) => [formatCurrency(v), 'Amount']}
-                contentStyle={{ borderRadius: '8px', border: '1px solid #e5e7eb' }}
-              />
-              <Area type="monotone" dataKey="amount" stroke="#1E3A8A" strokeWidth={2} fillOpacity={1} fill="url(#colorAmount)" />
-            </AreaChart>
-          </ResponsiveContainer>
+          <div className="mt-5 mb-4">
+            <p className="finance-value text-2xl font-semibold text-slate-900 dark:text-white">{formatCurrency(trendTotal)}</p>
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Total over the last {trendMonths} months</p>
+          </div>
+          {trend.some(month => month.amount !== 0) ? <ResponsiveContainer width="100%" height={230}>
+            <BarChart data={trend} margin={{ top: 12, right: 8, bottom: 0, left: 0 }} accessibilityLayer>
+              <CartesianGrid vertical={false} strokeDasharray="3 3" stroke="#cbd5e1" opacity={0.4} />
+              <XAxis dataKey="month" tickFormatter={month => month.slice(0, 3)} tick={{ fontSize: 11 }} axisLine={false} tickLine={false} stroke="#94a3b8" minTickGap={8} />
+              <YAxis width={55} tickFormatter={value => new Intl.NumberFormat('en-IN', { notation: 'compact', maximumFractionDigits: 1 }).format(value)} tick={{ fontSize: 11 }} axisLine={false} tickLine={false} stroke="#94a3b8" />
+              <Tooltip cursor={{ fill: '#94a3b8', opacity: 0.1 }} formatter={(value: number) => [formatCurrency(value), 'Spend']} contentStyle={{ borderRadius: '10px', border: '1px solid #e2e8f0', color: '#0f172a' }} />
+              <Bar dataKey="amount" radius={[5, 5, 0, 0]} maxBarSize={42}>
+                {trend.map((month, index) => <Cell key={month.month} fill={index === trend.length - 1 ? '#3b82f6' : '#93c5fd'} />)}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer> : <p className="flex h-[230px] items-center justify-center text-sm text-slate-500 dark:text-slate-400">No spending recorded in this period.</p>}
+          <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">{trend[0]?.month} – {trend[trend.length - 1]?.month} · amounts in INR</p>
         </div>
 
-        <div className="brand-card p-6 dark:border-gray-700 dark:bg-gray-800">
-          <h3 className="brand-section-heading mb-4">Spend by Category</h3>
-          <ResponsiveContainer width="100%" height={220}>
-            <PieChart>
-              <Pie
-                data={data.categoryBreakdown}
-                cx="50%"
-                cy="50%"
-                innerRadius={55}
-                outerRadius={90}
-                paddingAngle={3}
-                dataKey="amount"
-                nameKey="category"
-                stroke="none"
-              >
-                {data.categoryBreakdown.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={entry.color} />
-                ))}
-              </Pie>
-              <Tooltip formatter={(v: number) => formatCurrency(v)} />
-            </PieChart>
-          </ResponsiveContainer>
-          <div className="mt-4 space-y-2 max-h-40 overflow-y-auto">
-            {data.categoryBreakdown.map((cat, i) => (
-              <div key={i} className="flex items-center justify-between text-sm">
-                <div className="flex items-center gap-2 min-w-0">
-                  <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: cat.color }} />
-                  <span className="text-gray-600 dark:text-gray-300 truncate">{cat.category}</span>
-                </div>
-                <span className="font-medium text-gray-900 dark:text-white shrink-0 ml-2">{formatCurrency(cat.amount)}</span>
-              </div>
-            ))}
+        <div className="brand-card min-w-0 p-5 dark:border-gray-700 dark:bg-gray-800 sm:p-6">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h3 className="brand-section-heading">Spend by Category</h3>
+              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Current year · subcategories included</p>
+            </div>
+            <span className="rounded-full bg-blue-50 px-2.5 py-1 text-xs text-blue-700 dark:bg-blue-950 dark:text-blue-300">{categories.length} categories</span>
           </div>
+          <div className="mt-5 mb-5">
+            <p className="finance-value text-2xl font-semibold text-slate-900 dark:text-white">{formatCurrency(categoryTotal)}</p>
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Total categorized spend</p>
+          </div>
+          <div className="space-y-4">
+            {visibleCategories.map(category => <div key={category.categoryId ?? 'uncategorized'}>
+              <div className="mb-1.5 flex items-start justify-between gap-3 text-sm">
+                <span className="min-w-0 break-words font-medium text-slate-700 dark:text-slate-200">{category.category}</span>
+                <span className="shrink-0 text-right"><span className="finance-value font-semibold text-slate-900 dark:text-white">{formatCurrency(category.amount)}</span><span className="ml-2 text-xs text-slate-500 dark:text-slate-400">{categoryTotal > 0 ? `${(category.amount / categoryTotal * 100).toFixed(1)}%` : '—'}</span></span>
+              </div>
+              <div className="h-1.5 overflow-hidden rounded-full bg-slate-100 dark:bg-gray-700"><div className="h-full rounded-full" style={{ width: `${Math.abs(category.amount) / categoryScale * 100}%`, backgroundColor: category.color }} /></div>
+            </div>)}
+            {!categories.length && <p className="py-12 text-center text-sm text-slate-500 dark:text-slate-400">No category spending recorded this year.</p>}
+          </div>
+          {categories.length > 5 && <button type="button" onClick={() => setShowAllCategories(value => !value)} aria-expanded={showAllCategories} className="mt-5 text-sm font-medium text-blue-700 dark:text-blue-300">{showAllCategories ? 'Show fewer categories' : `View all ${categories.length} categories`}</button>}
         </div>
       </div>
 
