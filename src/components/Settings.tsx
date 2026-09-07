@@ -167,10 +167,9 @@ export default function Settings() {
             <div className="flex items-start gap-3">
               <Database className="w-5 h-5 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
               <div>
-                <p className="text-sm font-medium text-slate-900 dark:text-slate-200">Local Data Storage</p>
+                <p className="text-sm font-medium text-slate-900 dark:text-slate-200">Workspace Data Storage</p>
                 <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">
-                  Your financial data is stored locally in an SQLite database at <code className="bg-slate-200 dark:bg-slate-800 px-1 py-0.5 rounded">prisma/teinco_finance.db</code>. 
-                  No data leaves your computer unless you explicitly export it.
+                  Your financial data is stored in the workspace server’s MySQL database. Use managed database backups and exports to protect your records.
                 </p>
               </div>
             </div>

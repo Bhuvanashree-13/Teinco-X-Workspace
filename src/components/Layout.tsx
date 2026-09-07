@@ -136,7 +136,6 @@ export default function Layout() {
               <LogOut className="h-3.5 w-3.5" />
               <span className="hidden sm:inline">Logout</span>
             </button>
-            <div className="hidden items-center gap-2 text-xs text-[#6B7280] xl:flex"><span className="h-2 w-2 rounded-full bg-[#10B981]" />All systems operational</div>
             </div>
           </div>
         </header>

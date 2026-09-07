@@ -5,6 +5,7 @@ import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Ba
 import { StatCardsSkeleton, ChartSkeleton, Skeleton } from './Skeleton'
 
 interface DashboardData {
+  asOf: string
   currentMonthSpend: number
   previousMonthSpend: number
   currentYearSpend: number
@@ -28,7 +29,7 @@ interface DashboardData {
 export default function Dashboard() {
   const [trendMonths, setTrendMonths] = useState(6)
   const [showAllCategories, setShowAllCategories] = useState(false)
-  const { data, loading } = useApi<DashboardData>('/dashboard/kpi')
+  const { data, loading, error, refetch } = useApi<DashboardData>('/dashboard/kpi')
 
   if (loading) return (
     <div className="space-y-6">
@@ -48,28 +49,28 @@ export default function Dashboard() {
       </div>
     </div>
   )
-  if (!data) return <div className="text-red-500 p-8">Failed to load dashboard data</div>
+  if (!data || error) return <div role="alert" className="p-8 text-red-600 dark:text-red-300">Failed to load dashboard data. <button type="button" onClick={() => void refetch()} className="underline">Try again</button></div>
 
   const trend = data.monthlyTrend.slice(-trendMonths)
   const trendTotal = trend.reduce((total, month) => total + month.amount, 0)
   const categories = data.categoryBreakdown.filter(category => category.amount !== 0)
   const categoryTotal = categories.reduce((total, category) => total + category.amount, 0)
-  const categoryScale = Math.max(...categories.map(category => Math.abs(category.amount)), 1)
+  const categoryScale = categoryTotal > 0 ? categoryTotal : 1
   const visibleCategories = showAllCategories ? categories : categories.slice(0, 5)
 
-  const momChange = data.previousMonthSpend > 0 
+  const momChange = data.previousMonthSpend > 0
     ? ((data.currentMonthSpend - data.previousMonthSpend) / data.previousMonthSpend * 100).toFixed(1)
-    : '0'
+    : null
   const isMomUp = Number(momChange) >= 0
 
   const kpiCards = [
     {
-      title: 'Available Balance',
+      title: 'Recorded Net Balance',
       value: data.availableBalance,
       icon: Landmark,
       change: null,
       isUp: false,
-      subtitle: 'Deposits less YTD spend'
+      subtitle: 'All deposits less all expenses'
     },
     {
       title: 'Total Deposits',
@@ -79,88 +80,85 @@ export default function Dashboard() {
       isUp: false,
       subtitle: `${data.depositCount} received`
     },
-    { 
-      title: 'Current Month', 
-      value: data.currentMonthSpend, 
-      icon: Wallet, 
+    {
+      title: 'Month to Date',
+      value: data.currentMonthSpend,
+      icon: Wallet,
       change: momChange,
       isUp: isMomUp,
-      subtitle: 'vs last month'
+      subtitle: momChange === null ? 'No prior-month comparison' : 'vs full previous month'
     },
-    { 
-      title: 'YTD Spend', 
-      value: data.currentYearSpend, 
+    {
+      title: 'YTD Spend',
+      value: data.currentYearSpend,
       icon: CreditCard,
       change: null,
       isUp: false,
       subtitle: `${data.totalExpenses} transactions`
     },
-    { 
-      title: 'Monthly Average', 
-      value: data.monthlyAverage, 
+    {
+      title: 'Monthly Average',
+      value: data.monthlyAverage,
       icon: Activity,
       change: null,
       isUp: false,
-      subtitle: 'All time'
+      subtitle: 'Average of months with expenses'
     },
-    { 
-      title: 'Recurring/Month', 
-      value: data.recurringMonthlyCommitment, 
+    {
+      title: 'Monthly Recurring Expenses',
+      value: data.recurringMonthlyCommitment,
       icon: Zap,
       change: null,
       isUp: false,
-      subtitle: `Annual: ${formatCurrency(data.recurringAnnualCommitment)}`
+      subtitle: 'Monthly-cycle ledger entries only'
     },
-    { 
-      title: 'Software', 
-      value: data.softwareSpend, 
+    {
+      title: 'Software',
+      value: data.softwareSpend,
       icon: Monitor,
       change: null,
       isUp: false,
       subtitle: 'YTD total'
     },
-    { 
-      title: 'Cloud/Infra', 
-      value: data.cloudSpend, 
+    {
+      title: 'Cloud/Infra',
+      value: data.cloudSpend,
       icon: Server,
       change: null,
       isUp: false,
       subtitle: 'YTD total'
     },
-    { 
-      title: 'People', 
-      value: data.peopleSpend, 
+    {
+      title: 'People',
+      value: data.peopleSpend,
       icon: Users,
       change: null,
       isUp: false,
       subtitle: 'YTD total'
     },
-    { 
-      title: 'Hardware', 
-      value: data.hardwareSpend, 
+    {
+      title: 'Hardware',
+      value: data.hardwareSpend,
       icon: HardDrive,
       change: null,
       isUp: false,
-      subtitle: 'CapEx YTD'
+      subtitle: 'Hardware category YTD'
     },
   ]
 
   return (
-    <div className="space-y-6 max-w-7xl">
-      <div className="flex items-center justify-between">
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="brand-heading">Executive Dashboard</h2>
-          <p className="brand-caption mt-1">Real-time financial intelligence for Teinco-X Workspace</p>
+          <p className="brand-caption mt-1">Recorded expenses and deposits for Teinco-X Workspace</p>
         </div>
-        <div className="flex items-center gap-2 px-3 py-1.5 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 text-xs font-medium rounded-full">
-          <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-          Live Data
-        </div>
+        <button type="button" onClick={() => void refetch()} className="rounded-lg border border-slate-200 px-3 py-2 text-xs text-slate-600 dark:border-gray-700 dark:text-slate-300">Refresh · updated {new Date(data.asOf).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
         {kpiCards.map((card, i) => (
-          <div key={i} className="brand-card p-5 transition-shadow hover:shadow-md dark:border-gray-700 dark:bg-gray-800">
+          <div key={i} className="brand-card p-4 transition-shadow hover:shadow-md dark:border-gray-700 dark:bg-gray-800">
             <div className="flex items-start justify-between">
               <div className="flex-1 min-w-0">
                 <p className="brand-label">{card.title}</p>
@@ -172,7 +170,7 @@ export default function Dashboard() {
                   </p>
                 )}
                 {card.change === null && (
-                  <p className="text-xs text-gray-400 mt-1">{card.subtitle}</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">{card.subtitle}</p>
                 )}
               </div>
               <div className="p-2.5 bg-[#EFF6FF] dark:bg-gray-700/50 rounded-lg shrink-0 ml-3">
@@ -216,21 +214,21 @@ export default function Dashboard() {
           <div className="flex items-start justify-between gap-3">
             <div>
               <h3 className="brand-section-heading">Spend by Category</h3>
-              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Current year · subcategories included</p>
+              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Year to date · subcategories included</p>
             </div>
             <span className="rounded-full bg-blue-50 px-2.5 py-1 text-xs text-blue-700 dark:bg-blue-950 dark:text-blue-300">{categories.length} categories</span>
           </div>
           <div className="mt-5 mb-5">
             <p className="finance-value text-2xl font-semibold text-slate-900 dark:text-white">{formatCurrency(categoryTotal)}</p>
-            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Total categorized spend</p>
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Total recorded spend</p>
           </div>
           <div className="space-y-4">
             {visibleCategories.map(category => <div key={category.categoryId ?? 'uncategorized'}>
-              <div className="mb-1.5 flex items-start justify-between gap-3 text-sm">
+              <div className="mb-1.5 flex flex-wrap items-start justify-between gap-3 text-sm">
                 <span className="min-w-0 break-words font-medium text-slate-700 dark:text-slate-200">{category.category}</span>
                 <span className="shrink-0 text-right"><span className="finance-value font-semibold text-slate-900 dark:text-white">{formatCurrency(category.amount)}</span><span className="ml-2 text-xs text-slate-500 dark:text-slate-400">{categoryTotal > 0 ? `${(category.amount / categoryTotal * 100).toFixed(1)}%` : '—'}</span></span>
               </div>
-              <div className="h-1.5 overflow-hidden rounded-full bg-slate-100 dark:bg-gray-700"><div className="h-full rounded-full" style={{ width: `${Math.abs(category.amount) / categoryScale * 100}%`, backgroundColor: category.color }} /></div>
+              <div className="h-1.5 overflow-hidden rounded-full bg-slate-100 dark:bg-gray-700"><div className="h-full rounded-full" style={{ width: `${Math.max(0, Math.min(100, category.amount / categoryScale * 100))}%`, backgroundColor: category.color }} /></div>
             </div>)}
             {!categories.length && <p className="py-12 text-center text-sm text-slate-500 dark:text-slate-400">No category spending recorded this year.</p>}
           </div>
@@ -241,7 +239,7 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="brand-card p-6 dark:border-gray-700 dark:bg-gray-800">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="brand-section-heading">Upcoming Recurring Expenses</h3>
+            <h3 className="brand-section-heading">Upcoming Ledger Expenses</h3>
             <span className="text-xs px-2 py-1 bg-amber-50 text-amber-700 rounded-full font-medium">Next 30 days</span>
           </div>
           <div className="divide-y divide-gray-100 dark:divide-gray-700">
@@ -249,7 +247,7 @@ export default function Dashboard() {
               <div key={i} className="py-3 flex items-center justify-between group hover:bg-gray-50 dark:hover:bg-gray-700/30 px-2 -mx-2 rounded-lg transition-colors">
                 <div className="min-w-0">
                   <p className="font-medium text-gray-900 dark:text-white text-sm truncate">{exp.description}</p>
-                  <p className="text-xs text-gray-500">{exp.vendor || 'Internal'} • {exp.category}</p>
+                  <p className="text-xs text-gray-500">{exp.vendor || 'No vendor assigned'} • {exp.category}</p>
                 </div>
                 <div className="text-right shrink-0 ml-4">
                   <p className="font-semibold text-gray-900 dark:text-white text-sm">{formatCurrency(exp.amount)}</p>
@@ -258,48 +256,39 @@ export default function Dashboard() {
               </div>
             ))}
             {data.upcomingExpenses.length === 0 && (
-              <p className="py-8 text-gray-500 text-center text-sm">No upcoming expenses in the next 30 days</p>
+              <p className="py-8 text-gray-500 text-center text-sm">No ledger expenses scheduled in the next 30 days</p>
             )}
           </div>
         </div>
 
         <div className="brand-card p-6 dark:border-gray-700 dark:bg-gray-800">
-          <h3 className="brand-section-heading mb-4">Burn Rate Analysis</h3>
+          <h3 className="brand-section-heading mb-4">Spending Summary</h3>
           <div className="space-y-4">
             <div className="p-4 bg-gray-50 dark:bg-gray-700/30 rounded-lg">
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-600 dark:text-gray-300">Monthly Burn (Avg)</span>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="text-sm text-gray-600 dark:text-gray-300">Average per spending month</span>
                 <span className="finance-value font-semibold text-gray-900 dark:text-white">{formatCurrency(data.monthlyAverage)}</span>
               </div>
-              <div className="mt-2 h-2 bg-gray-200 dark:bg-gray-600 rounded-full overflow-hidden">
-                <div className="h-full bg-emerald-500 rounded-full" style={{ width: '65%' }} />
-              </div>
             </div>
             <div className="p-4 bg-gray-50 dark:bg-gray-700/30 rounded-lg">
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-600 dark:text-gray-300">Projected Annual</span>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="text-sm text-gray-600 dark:text-gray-300">Annualized average (estimate)</span>
                 <span className="finance-value font-semibold text-gray-900 dark:text-white">{formatCurrency(data.monthlyAverage * 12)}</span>
               </div>
-              <div className="mt-2 h-2 bg-gray-200 dark:bg-gray-600 rounded-full overflow-hidden">
-                <div className="h-full bg-emerald-500 rounded-full" style={{ width: '72%' }} />
-              </div>
             </div>
             <div className="p-4 bg-gray-50 dark:bg-gray-700/30 rounded-lg">
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-600 dark:text-gray-300">Recurring Commitment</span>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="text-sm text-gray-600 dark:text-gray-300">Monthly-cycle ledger expenses</span>
                 <span className="finance-value font-semibold text-gray-900 dark:text-white">{formatCurrency(data.recurringMonthlyCommitment)}</span>
-              </div>
-              <div className="mt-2 h-2 bg-gray-200 dark:bg-gray-600 rounded-full overflow-hidden">
-                <div className="h-full bg-[#60A5FA] rounded-full" style={{ width: '45%' }} />
               </div>
             </div>
             <div className="p-4 bg-slate-50 dark:bg-slate-900/20 rounded-lg border border-slate-200 dark:border-slate-700">
               <div className="flex items-start gap-3">
                 <ArrowUpRight className="w-5 h-5 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
                 <div>
-                  <p className="text-sm font-medium text-slate-900 dark:text-slate-200">Smart Insight</p>
+                  <p className="text-sm font-medium text-slate-900 dark:text-slate-200">Category Summary</p>
                   <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">
-                    Cloud infrastructure spending has increased 47% since January. Consider reviewing AWS reserved instances for potential savings.
+                    {categories.length && categoryTotal > 0 ? `${categories[0].category} accounts for ${(categories[0].amount / categoryTotal * 100).toFixed(1)}% of recorded year-to-date spend. The annualized average is an estimate, not a forecast.` : 'Record expenses to see a spending summary. Annualized estimates use only months with recorded expenses.'}
                   </p>
                 </div>
               </div>

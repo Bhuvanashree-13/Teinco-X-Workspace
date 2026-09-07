@@ -13,16 +13,16 @@ router.get('/kpi', async (req, res) => {
   try {
     const now = new Date()
     const currentMonthStart = startOfMonth(now)
-    const currentMonthEnd = endOfMonth(now)
+    const currentMonthEnd = now
     const currentYearStart = startOfYear(now)
-    const currentYearEnd = endOfYear(now)
+    const currentYearEnd = now
     const prevMonthStart = startOfMonth(subMonths(now, 1))
     const prevMonthEnd = endOfMonth(subMonths(now, 1))
     const prevYearStart = startOfYear(subMonths(now, 12))
     const prevYearEnd = endOfYear(subMonths(now, 12))
 
     const deposits = await prisma.deposit.aggregate({
-      where: { status: 'received' },
+      where: { status: 'received', depositDate: { lte: now } },
       _sum: { baseCurrencyAmount: true },
       _count: true,
     })
@@ -65,7 +65,7 @@ router.get('/kpi', async (req, res) => {
 
     // Monthly average
     const allExpenses = await prisma.expense.findMany({
-      where: { status: 'active' },
+      where: { status: 'active', expenseDate: { lte: now } },
       select: { expenseDate: true, baseCurrencyAmount: true }
     })
 
@@ -165,10 +165,11 @@ router.get('/kpi', async (req, res) => {
         dueDate: e.nextDueDate
       })),
       monthlyTrend: Object.entries(monthlyTrend).map(([month, amount]) => ({ month, amount })),
-      totalExpenses: allExpenses.length,
+      totalExpenses: allExpenses.filter(expense => expense.expenseDate >= currentYearStart).length,
+      asOf: now.toISOString(),
       totalDeposits: Number(deposits._sum.baseCurrencyAmount) || 0,
       depositCount: deposits._count,
-      availableBalance: (Number(deposits._sum.baseCurrencyAmount) || 0) - (Number(currentYearExpenses._sum.baseCurrencyAmount) || 0)
+      availableBalance: (Number(deposits._sum.baseCurrencyAmount) || 0) - allExpenses.reduce((total, expense) => total + Number(expense.baseCurrencyAmount), 0)
     })
   } catch (error) {
     console.error('Dashboard KPI error:', error)

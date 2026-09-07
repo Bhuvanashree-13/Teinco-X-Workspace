@@ -22,7 +22,7 @@
     "postinstall": "node scripts/prisma-generate.mjs",
     "test:auth": "tsx --test tests/google-auth.test.ts",
     "test:schema": "node --test tests/google-schema.test.mjs",
-    "test:dashboard": "tsx --test tests/dashboard-categories.test.ts"
+    "test:dashboard": "tsx --test tests/dashboard-categories.test.ts tests/analytics-vendors.test.ts tests/dashboard-kpi.test.ts"
   },
   "dependencies": {
     "@prisma/client": "^5.15.0",
