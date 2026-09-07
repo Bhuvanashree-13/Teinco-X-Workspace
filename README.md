@@ -390,3 +390,21 @@ For issues or feature requests, contact the Teinco-X engineering team.
 
 **Database:** Railway MySQL via private `DATABASE_URL` or `MYSQL_URL`  
 **Backup location:** `./backups/` JSON exports plus Railway database snapshots
+
+## Google sign-in (web)
+
+Admins and employees can sign in with Google using their existing, active workspace login. Their role and employee access come from the database; Google sign-in never creates users or grants admin access.
+
+1. In [Google Cloud](https://console.cloud.google.com/auth/clients), configure Google Auth Platform branding and audience, then create an OAuth client with application type **Web application**.
+2. Add the exact website origin under **Authorized JavaScript origins**, such as `https://your-app.up.railway.app`. For local development add `http://localhost:5173`. Origins have no path or trailing slash. This uses the Google popup/JavaScript callback flow, so no redirect URI or client secret is required. If the consent app is in testing, add the intended users as test users; choose an audience that includes both your admins and employees.
+3. Set `GOOGLE_CLIENT_ID` to that client ID and configure a strong `JWT_SECRET` on the app server (Railway service variables in production). Restart/redeploy the service. The client ID is served at runtime, so no Vite environment variable is needed. Local development must export these variables into the server process environment.
+4. Apply the additive schema update with `npm run db:push` and regenerate with `npm run db:generate`. The existing production start script already runs `prisma db push`, and dependency installation generates Prisma Client. This adds a nullable, unique `User.googleSubject`; existing users and passwords are retained.
+5. Provision each user's Gmail or Google Workspace email in People / Admin users, then use **Sign in with Google** on the web login page. Initial linking requires an authoritative Gmail or Google Workspace address. Other third-party email addresses registered with Google continue using password sign-in.
+
+The server verifies Google's signature, audience, issuer, expiry, verified email, and a browser-bound nonce before issuing the normal workspace session. Linked accounts are identified by Google's stable subject ID. Unknown or inactive users are rejected. First-time employee Google sign-in closes the pending first-password setup path; existing configured passwords still work. A Google-only employee will need a password reset before using password login.
+
+When Google configuration is absent, password sign-in remains available and the Google button is hidden. Production must use HTTPS for the sign-in challenge cookie. If a reverse proxy sets Cross-Origin-Opener-Policy, use `same-origin-allow-popups` so Google popup login can work. Native React Native sign-in is unchanged.
+
+Validation: `npm run test:auth` and `npm run build`. To smoke-test deployment, sign in with a provisioned admin and employee, verify their respective access, then confirm an unprovisioned account is refused. Real Google popup testing requires the configured client ID and an authorized origin.
+
+Reference: [Google server-side ID token verification](https://developers.google.com/identity/gsi/web/guides/verify-google-id-token).

@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react'
 import { LockKeyhole, Moon, ShieldCheck, Sun, UserRound } from 'lucide-react'
 import { useRole } from '../context/RoleContext'
 import { useTheme } from '../hooks/useTheme'
+import GoogleSignIn from './GoogleSignIn'
 
 export default function Login() {
   const { login } = useRole()
@@ -13,6 +14,7 @@ export default function Login() {
 
   const submit = async (event: FormEvent) => {
     event.preventDefault()
+    if (loading) return
     setLoading(true)
     setError('')
     try {
@@ -95,6 +97,7 @@ export default function Login() {
                 {loading ? 'Signing in…' : 'Sign in'}
               </button>
             </div>
+            <GoogleSignIn disabled={loading} onBusy={setLoading} />
             <p className="mt-5 text-xs text-slate-500 dark:text-slate-400">Access is provisioned privately by the workspace administrator.</p>
           </form>
         </div>

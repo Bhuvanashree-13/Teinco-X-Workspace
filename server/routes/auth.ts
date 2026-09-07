@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
 import { prisma } from '../db.js'
 import { requireAdmin, requireAuth } from '../middleware/auth.js'
+import { createGoogleAuthRouter } from './google-auth.js'
 
 const router = Router()
 const JWT_SECRET = process.env.JWT_SECRET || 'teinco-finance-local-secret-key'
@@ -53,6 +54,8 @@ const publicLoginUser = (user: any) => ({
     : null,
 })
 
+router.use('/google', createGoogleAuthRouter({ signUser, publicUser }))
+
 // Login
 router.post('/login', async (req, res) => {
   try {
@@ -99,6 +102,7 @@ router.get('/verify', async (req, res) => {
     const decoded = jwt.verify(token, JWT_SECRET) as any
     const user = await prisma.user.findUnique({ where: { id: decoded.userId } })
     if (!user) return res.status(401).json({ error: 'User not found' })
+    if (!user.isActive) return res.status(401).json({ error: 'User account is inactive' })
 
     res.json({ user: publicUser(user) })
   } catch {

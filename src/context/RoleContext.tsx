@@ -22,6 +22,7 @@ type RoleContextValue = {
   isAdmin: boolean
   loading: boolean
   login: (input: LoginInput) => Promise<void>
+  loginWithGoogle: (credential: string) => Promise<void>
   logout: () => void
 }
 
@@ -96,6 +97,18 @@ export function RoleProvider({ children }: { children: ReactNode }) {
     storeSession(json.token, json.user)
   }
 
+  const loginWithGoogle = async (credential: string) => {
+    const res = await fetch('/api/auth/google', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ credential }),
+    })
+    const json = await res.json().catch(() => null)
+    if (!res.ok) throw new Error(json?.error || 'Google sign-in failed')
+    storeSession(json.token, json.user)
+  }
+
   const role = user?.role || 'employee'
   const value = useMemo(() => ({
     user,
@@ -104,6 +117,7 @@ export function RoleProvider({ children }: { children: ReactNode }) {
     isAdmin: role === 'admin',
     loading,
     login,
+    loginWithGoogle,
     logout,
   }), [user, token, role, loading])
 
