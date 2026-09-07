@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import { apiPost, useApi } from '../hooks/useApi'
-import { Search, Plus, Store, TrendingUp, ArrowUpRight, Receipt, X } from 'lucide-react'
+import { apiPost, apiPut, useApi } from '../hooks/useApi'
+import { Search, Plus, Store, TrendingUp, Receipt, X, Pencil } from 'lucide-react'
 import { CardGridSkeleton } from './Skeleton'
 
 const emptyVendorForm = {
@@ -23,18 +23,41 @@ export default function Vendors() {
   const [search, setSearch] = useState('')
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState(emptyVendorForm)
+  const [editingId, setEditingId] = useState<number | null>(null)
+  const [formError, setFormError] = useState('')
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState('')
   const { data, loading, refetch } = useApi(`/vendors?search=${encodeURIComponent(search)}`)
 
   const vendors = data || []
 
+
+  const closeForm = () => {
+    if (!saving) setShowForm(false)
+  }
+
+  const openForm = (record?: any) => {
+    setEditingId(record?.id ?? null)
+    setFormError('')
+    setMessage('')
+    const next = { ...emptyVendorForm }
+    if (record) {
+      for (const key of Object.keys(next) as (keyof typeof next)[]) {
+        const value = record[key]
+        Object.assign(next, { [key]: typeof next[key] === 'boolean' ? (value ?? next[key]) : String(value ?? '') })
+      }
+    }
+    setForm(next)
+    setShowForm(true)
+  }
+
   const submitVendor = async (event: React.FormEvent) => {
     event.preventDefault()
+    if (saving) return
     setSaving(true)
-    setMessage('')
+    setFormError('')
     try {
-      await apiPost('/vendors', {
+      await (editingId === null ? apiPost : apiPut)(editingId === null ? '/vendors' : `/vendors/${editingId}`, {
         name: form.name.trim(),
         type: form.type,
         contactName: form.contactName.trim() || null,
@@ -51,10 +74,10 @@ export default function Vendors() {
       })
       setForm(emptyVendorForm)
       setShowForm(false)
-      setMessage('Vendor added successfully.')
+      setMessage(editingId === null ? 'Vendor added successfully.' : 'Vendor updated successfully.')
       await refetch()
     } catch (error: any) {
-      setMessage(error.message || 'Could not add vendor.')
+      setFormError(error.message || 'Could not save vendor.')
     } finally {
       setSaving(false)
     }
@@ -68,7 +91,7 @@ export default function Vendors() {
           <p className="brand-caption mt-1">Track vendor relationships and spending</p>
         </div>
         <div className="mobile-action-stack">
-        <button type="button" onClick={() => setShowForm(true)} className="brand-primary-button">
+        <button type="button" onClick={() => openForm()} className="brand-primary-button">
           <Plus className="w-4 h-4" /> Add Vendor
         </button>
         </div>
@@ -92,7 +115,7 @@ export default function Vendors() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {vendors.map((vendor: any) => (
-            <div key={vendor.id} className="brand-card p-5 transition-all hover:shadow-md cursor-pointer group dark:border-gray-700 dark:bg-gray-800">
+            <div key={vendor.id} className="brand-card p-5 transition-all hover:shadow-md group dark:border-gray-700 dark:bg-gray-800">
               <div className="flex items-start justify-between">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-lg bg-[#EFF6FF] dark:bg-gray-700 flex items-center justify-center">
@@ -127,7 +150,7 @@ export default function Vendors() {
 
               <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700 flex items-center justify-between">
                 <span className="text-xs text-gray-500">{vendor.type}</span>
-                <ArrowUpRight className="w-4 h-4 text-gray-400 group-hover:text-emerald-600 transition-colors" />
+                <button type="button" onClick={() => openForm(vendor)} aria-label={`Edit ${vendor.name}`} className="inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm dark:border-gray-600 dark:text-white"><Pencil className="h-4 w-4" /> Edit</button>
               </div>
             </div>
           ))}
@@ -141,16 +164,18 @@ export default function Vendors() {
       )}
 
       {showForm && (
-        <div className="mobile-dialog-overlay" onMouseDown={() => setShowForm(false)}>
+        <div className="mobile-dialog-overlay" onMouseDown={closeForm}>
           <div className="mobile-dialog-panel" onMouseDown={event => event.stopPropagation()}>
             <div className="mobile-dialog-header">
               <div>
-                <h3 className="text-lg font-semibold text-[#1E3A8A] dark:text-white">Add vendor</h3>
+                <h3 className="text-lg font-semibold text-[#1E3A8A] dark:text-white">{editingId === null ? 'Add vendor' : 'Edit vendor'}</h3>
                 <p className="text-sm text-gray-500">Create a supplier record for expenses and subscriptions.</p>
               </div>
-              <button type="button" onClick={() => setShowForm(false)} className="mobile-dialog-close" aria-label="Close vendor form"><X className="h-5 w-5" /></button>
+              <button type="button" onClick={closeForm} className="mobile-dialog-close" aria-label="Close vendor form"><X className="h-5 w-5" /></button>
             </div>
             <form onSubmit={submitVendor} className="mobile-dialog-form">
+              {formError && <div role="alert" className="sm:col-span-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{formError}</div>}
+              <fieldset disabled={saving} className="contents">
               <label className="text-sm dark:text-gray-200">Vendor name<input required value={form.name} onChange={event => setForm({ ...form, name: event.target.value })} className="mt-1 w-full rounded-lg border p-2.5 dark:border-gray-600 dark:bg-gray-900" /></label>
               <label className="text-sm dark:text-gray-200">Type<select value={form.type} onChange={event => setForm({ ...form, type: event.target.value })} className="mt-1 w-full rounded-lg border p-2.5 dark:border-gray-600 dark:bg-gray-900"><option value="service">Service</option><option value="software">Software</option><option value="cloud">Cloud</option><option value="hardware">Hardware</option><option value="other">Other</option></select></label>
               <label className="text-sm dark:text-gray-200">Contact name<input value={form.contactName} onChange={event => setForm({ ...form, contactName: event.target.value })} className="mt-1 w-full rounded-lg border p-2.5 dark:border-gray-600 dark:bg-gray-900" /></label>
@@ -165,9 +190,10 @@ export default function Vendors() {
               <label className="text-sm dark:text-gray-200">State<input value={form.state} onChange={event => setForm({ ...form, state: event.target.value })} className="mt-1 w-full rounded-lg border p-2.5 dark:border-gray-600 dark:bg-gray-900" /></label>
               <label className="text-sm sm:col-span-2 dark:text-gray-200">Notes<textarea value={form.notes} onChange={event => setForm({ ...form, notes: event.target.value })} className="mt-1 h-20 w-full rounded-lg border p-2.5 dark:border-gray-600 dark:bg-gray-900" /></label>
               <div className="mobile-form-actions dark:border-gray-700">
-                <button type="button" onClick={() => setShowForm(false)} className="rounded-lg border px-4 py-2 text-sm dark:border-gray-600">Cancel</button>
-                <button disabled={saving} className="brand-primary-button">{saving ? 'Saving…' : 'Save vendor'}</button>
+                <button type="button" onClick={closeForm} className="rounded-lg border px-4 py-2 text-sm dark:border-gray-600">Cancel</button>
+                <button disabled={saving} className="brand-primary-button">{saving ? 'Saving…' : editingId === null ? 'Save vendor' : 'Save changes'}</button>
               </div>
+              </fieldset>
             </form>
           </div>
         </div>

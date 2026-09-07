@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import { apiPost, useApi, formatCurrency, formatDate } from '../hooks/useApi'
-import { Calendar, Plus, AlertCircle, CheckCircle2, Clock, RefreshCw, X } from 'lucide-react'
+import { apiPost, apiPut, useApi, formatCurrency, formatDate } from '../hooks/useApi'
+import { Calendar, Plus, AlertCircle, CheckCircle2, Clock, RefreshCw, X, Pencil } from 'lucide-react'
 import { useRole } from '../context/RoleContext'
 import { TableSkeleton } from './Skeleton'
 
@@ -39,6 +39,8 @@ export default function Subscriptions() {
   const [filter, setFilter] = useState('active')
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState(emptySubscriptionForm)
+  const [editingId, setEditingId] = useState<number | null>(null)
+  const [formError, setFormError] = useState('')
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState('')
   const { data, loading, refetch } = useApi(`/subscriptions?status=${filter}`)
@@ -47,13 +49,44 @@ export default function Subscriptions() {
 
   const subs = data || []
   const categoryOptions = buildCategoryOptions(categories || [])
+  const currentSubscription = subs.find((sub: any) => sub.id === editingId)
+  if (form.categoryId && !categoryOptions.some(category => String(category.id) === form.categoryId)) {
+    categoryOptions.push({ id: Number(form.categoryId), label: categoryLabel(currentSubscription?.category), isChild: false })
+  }
+  const vendorOptions = [...(vendors || [])]
+  if (form.vendorId && !vendorOptions.some(vendor => String(vendor.id) === form.vendorId)) {
+    vendorOptions.push({ id: Number(form.vendorId), name: currentSubscription?.vendor?.name || 'Current vendor' })
+  }
+
+
+  const closeForm = () => {
+    if (!saving) setShowForm(false)
+  }
+
+  const openForm = (record?: any) => {
+    setEditingId(record?.id ?? null)
+    setFormError('')
+    setMessage('')
+    const next = { ...emptySubscriptionForm }
+    if (record) {
+      for (const key of Object.keys(next) as (keyof typeof next)[]) {
+        const value = record[key]
+        Object.assign(next, { [key]: typeof next[key] === 'boolean' ? (value ?? next[key]) : String(value ?? '') })
+      }
+      next.startDate = String(record.startDate || '').slice(0, 10)
+      next.nextBillingDate = String(record.nextBillingDate || '').slice(0, 10)
+    }
+    setForm(next)
+    setShowForm(true)
+  }
 
   const submitSubscription = async (event: React.FormEvent) => {
     event.preventDefault()
+    if (saving) return
     setSaving(true)
-    setMessage('')
+    setFormError('')
     try {
-      await apiPost('/subscriptions', {
+      await (editingId === null ? apiPost : apiPut)(editingId === null ? '/subscriptions' : `/subscriptions/${editingId}`, {
         productName: form.productName.trim(),
         vendorId: form.vendorId ? Number(form.vendorId) : null,
         categoryId: Number(form.categoryId),
@@ -70,11 +103,11 @@ export default function Subscriptions() {
       })
       setForm(emptySubscriptionForm)
       setShowForm(false)
-      setFilter('active')
-      setMessage('Subscription added successfully.')
+      setFilter(form.status)
+      setMessage(editingId === null ? 'Subscription added successfully.' : 'Subscription updated successfully.')
       await refetch()
     } catch (error: any) {
-      setMessage(error.message || 'Could not add subscription.')
+      setFormError(error.message || 'Could not save subscription.')
     } finally {
       setSaving(false)
     }
@@ -107,7 +140,7 @@ export default function Subscriptions() {
         </div>
         {isAdmin && (
           <div className="mobile-action-stack">
-          <button type="button" onClick={() => setShowForm(true)} className="brand-primary-button">
+          <button type="button" onClick={() => openForm()} className="brand-primary-button">
             <Plus className="w-4 h-4" /> Add Subscription
           </button>
           </div>
@@ -153,6 +186,7 @@ export default function Subscriptions() {
                   <th className="px-4 py-3 font-medium">Cost</th>
                   <th className="px-4 py-3 font-medium">Next Billing</th>
                   <th className="px-4 py-3 font-medium">Status</th>
+                  {isAdmin && <th className="px-4 py-3 font-medium">Actions</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
@@ -185,6 +219,7 @@ export default function Subscriptions() {
                         {sub.status}
                       </span>
                     </td>
+                    {isAdmin && <td className="px-4 py-3"><button type="button" onClick={() => openForm(sub)} aria-label={`Edit ${sub.productName}`} className="inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm dark:border-gray-600 dark:text-white"><Pencil className="h-4 w-4" /> Edit</button></td>}
                   </tr>
                 ))}
               </tbody>
@@ -200,18 +235,20 @@ export default function Subscriptions() {
       )}
 
       {isAdmin && showForm && (
-        <div className="mobile-dialog-overlay" onMouseDown={() => setShowForm(false)}>
+        <div className="mobile-dialog-overlay" onMouseDown={closeForm}>
           <div className="mobile-dialog-panel" onMouseDown={event => event.stopPropagation()}>
             <div className="mobile-dialog-header">
               <div>
-                <h3 className="text-lg font-semibold text-[#1E3A8A] dark:text-white">Add subscription</h3>
+                <h3 className="text-lg font-semibold text-[#1E3A8A] dark:text-white">{editingId === null ? 'Add subscription' : 'Edit subscription'}</h3>
                 <p className="text-sm text-gray-500">Track recurring tools, services, and renewal commitments.</p>
               </div>
-              <button type="button" onClick={() => setShowForm(false)} className="mobile-dialog-close" aria-label="Close subscription form"><X className="h-5 w-5" /></button>
+              <button type="button" onClick={closeForm} className="mobile-dialog-close" aria-label="Close subscription form"><X className="h-5 w-5" /></button>
             </div>
             <form onSubmit={submitSubscription} className="mobile-dialog-form">
+              {formError && <div role="alert" className="sm:col-span-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{formError}</div>}
+              <fieldset disabled={saving} className="contents">
               <label className="text-sm dark:text-gray-200">Subscription name<input required value={form.productName} onChange={event => setForm({ ...form, productName: event.target.value })} placeholder="e.g. Accounting software" className="mt-1 w-full rounded-lg border p-2.5 dark:border-gray-600 dark:bg-gray-900" /></label>
-              <label className="text-sm dark:text-gray-200">Vendor<select value={form.vendorId} onChange={event => setForm({ ...form, vendorId: event.target.value })} className="mt-1 w-full rounded-lg border p-2.5 dark:border-gray-600 dark:bg-gray-900"><option value="">No vendor</option>{(vendors || []).map(vendor => <option key={vendor.id} value={vendor.id}>{vendor.name}</option>)}</select></label>
+              <label className="text-sm dark:text-gray-200">Vendor<select value={form.vendorId} onChange={event => setForm({ ...form, vendorId: event.target.value })} className="mt-1 w-full rounded-lg border p-2.5 dark:border-gray-600 dark:bg-gray-900"><option value="">No vendor</option>{vendorOptions.map(vendor => <option key={vendor.id} value={vendor.id}>{vendor.name}</option>)}</select></label>
               <label className="text-sm dark:text-gray-200">Category<select required value={form.categoryId} onChange={event => setForm({ ...form, categoryId: event.target.value })} className="mt-1 w-full rounded-lg border p-2.5 dark:border-gray-600 dark:bg-gray-900"><option value="">{categoryOptions.length ? 'Select category' : 'No categories available'}</option>{categoryOptions.map(category => <option key={category.id} value={category.id}>{category.isChild ? '— ' : ''}{category.label}</option>)}</select><span className="mt-1 block text-xs text-slate-500">Required so recurring commitments are grouped correctly.</span></label>
               <label className="text-sm dark:text-gray-200">Billing cycle<select value={form.billingCycle} onChange={event => setForm({ ...form, billingCycle: event.target.value })} className="mt-1 w-full rounded-lg border p-2.5 dark:border-gray-600 dark:bg-gray-900"><option value="monthly">Monthly</option><option value="yearly">Yearly</option><option value="quarterly">Quarterly</option><option value="half_yearly">Half yearly</option><option value="weekly">Weekly</option><option value="daily">Daily</option></select></label>
               <label className="text-sm dark:text-gray-200">Cost<input required min="0.01" step="0.01" type="number" value={form.cost} onChange={event => setForm({ ...form, cost: event.target.value })} className="mt-1 w-full rounded-lg border p-2.5 dark:border-gray-600 dark:bg-gray-900" /></label>
@@ -224,9 +261,10 @@ export default function Subscriptions() {
               <label className="text-sm sm:col-span-2 dark:text-gray-200">Notes<textarea value={form.notes} onChange={event => setForm({ ...form, notes: event.target.value })} className="mt-1 h-20 w-full rounded-lg border p-2.5 dark:border-gray-600 dark:bg-gray-900" /></label>
               <label className="flex items-center gap-2 text-sm dark:text-gray-200"><input type="checkbox" checked={form.autoRenewal} onChange={event => setForm({ ...form, autoRenewal: event.target.checked })} /> Auto-renewal enabled</label>
               <div className="mobile-form-actions dark:border-gray-700">
-                <button type="button" onClick={() => setShowForm(false)} className="rounded-lg border px-4 py-2 text-sm dark:border-gray-600">Cancel</button>
-                <button disabled={saving} className="brand-primary-button">{saving ? 'Saving…' : 'Save subscription'}</button>
+                <button type="button" onClick={closeForm} className="rounded-lg border px-4 py-2 text-sm dark:border-gray-600">Cancel</button>
+                <button disabled={saving} className="brand-primary-button">{saving ? 'Saving…' : editingId === null ? 'Save subscription' : 'Save changes'}</button>
               </div>
+              </fieldset>
             </form>
           </div>
         </div>
