@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react'
+import FlowIntelligence from './FlowIntelligence'
 import { Link } from 'react-router-dom'
 import { StatCardsSkeleton } from './Skeleton'
 import {
@@ -82,6 +83,8 @@ type Forecast = {
     projectedHeadcount: number
     staffingPressure: string
     confidence: string
+    method?: string
+    historyCount?: number
   }
   scenarios: Array<{
     id: number
@@ -127,6 +130,7 @@ const insightDefaults = {
 
 const tabs = [
   { id: 'command', label: 'Overview', icon: Gauge },
+  { id: 'intelligence', label: 'Checks', icon: ShieldCheck },
   { id: 'automation', label: 'Automation', icon: Bot },
   { id: 'forecast', label: 'Forecast', icon: TrendingUp },
   { id: 'insights', label: 'Insights', icon: BrainCircuit },
@@ -189,8 +193,8 @@ export default function Flow() {
   const scenarioList = forecast?.scenarios || []
   const modules = overview?.modules
   const refreshing = overviewLoading || rulesLoading || forecastLoading || insightsLoading
-  const tabLoading = activeTab === 'automation' ? rulesLoading : activeTab === 'forecast' ? forecastLoading : activeTab === 'insights' ? insightsLoading : overviewLoading
-  const tabError = activeTab === 'automation' ? rulesError : activeTab === 'forecast' ? forecastError : activeTab === 'insights' ? insightsError : overviewError
+  const tabLoading = activeTab === 'intelligence' ? false : activeTab === 'automation' ? rulesLoading : activeTab === 'forecast' ? forecastLoading : activeTab === 'insights' ? insightsLoading : overviewLoading
+  const tabError = activeTab === 'intelligence' ? null : activeTab === 'automation' ? rulesError : activeTab === 'forecast' ? forecastError : activeTab === 'insights' ? insightsError : overviewError
   const moduleCards = [
     { name: 'Finance', icon: WalletCards, to: '/expenses', tone: 'text-blue-600 bg-blue-50 dark:text-blue-300 dark:bg-blue-950/60', value: formatCurrency(modules?.ledger.currentMonthSpend || 0), label: 'Current month spending', secondary: `${formatCurrency(modules?.ledger.recurringMonthlyCommitment || 0)} recurring ledger expenses`, action: 'Review expenses' },
     { name: 'People', icon: Users, to: '/people', tone: 'text-violet-600 bg-violet-50 dark:text-violet-300 dark:bg-violet-950/60', value: String(modules?.people.activeEmployees || 0), label: 'Active employees', secondary: `${formatCurrency(modules?.people.monthlyPeopleCost || 0)} monthly people cost`, action: 'Manage people' },
@@ -311,7 +315,7 @@ export default function Flow() {
       {message && <div role={messageError ? 'alert' : 'status'} className={`rounded-xl border px-4 py-3 text-sm ${messageError ? 'border-red-200 bg-red-50 text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200' : 'border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200'}`}>{message}</div>}
 
       {overviewLoading && !overview ? <StatCardsSkeleton count={4} /> : overviewError ? <div role="alert" className="rounded-xl border border-red-200 p-4 text-sm text-red-700 dark:border-red-900 dark:text-red-300">The overview could not be loaded. Use Refresh to try again.</div> : <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <Metric icon={Gauge} label="Risk indicator" value={`${overview?.riskScore ?? 0}/100`} caption="Based on recorded open risks" />
+        <Metric icon={Gauge} label="Rule-based attention score" value={`${overview?.riskScore ?? 0}/100`} caption="Heuristic score; not a probability" />
         <Metric icon={Users} label="Active employees" value={String(modules?.people.activeEmployees || 0)} caption={`${modules?.people.pendingLeave || 0} leave requests pending`} />
         <Metric icon={CalendarDays} label="Upcoming work" value={String((modules?.schedule.openMilestones || 0) + (modules?.schedule.upcomingEvents || 0))} caption="Open milestones and upcoming events" />
         <Metric icon={Bot} label="Active rules" value={String(modules?.flow.activeRules || 0)} caption={`${modules?.flow.openInsights || 0} open insights`} />
@@ -321,6 +325,8 @@ export default function Flow() {
         {tabs.map(tab => <button key={tab.id} type="button" aria-pressed={activeTab === tab.id} onClick={() => setActiveTab(tab.id)} className={`flex shrink-0 items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium transition-colors ${activeTab === tab.id ? 'bg-white text-blue-700 shadow-sm dark:bg-blue-500/15 dark:text-blue-200' : 'text-slate-600 hover:bg-white/60 dark:text-slate-300 dark:hover:bg-gray-700'}`}><tab.icon className="h-4 w-4" />{tab.label}</button>)}
       </div>
       {tabLoading ? <div className="rounded-xl border border-slate-200 p-8 text-center text-sm text-slate-500 dark:border-gray-700 dark:text-slate-300" role="status">Loading {tabs.find(tab => tab.id === activeTab)?.label.toLowerCase()}…</div> : tabError ? <div role="alert" className="rounded-xl border border-red-200 p-5 text-red-700 dark:border-red-900 dark:text-red-300">Could not load this view. <button type="button" onClick={refreshFlow} className="underline">Try again</button></div> : null}
+
+      {activeTab === 'intelligence' && <FlowIntelligence />}
 
       {activeTab === 'command' && !tabLoading && !tabError && overview && (
         <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
@@ -348,7 +354,7 @@ export default function Flow() {
       {activeTab === 'automation' && !tabLoading && !tabError && (
         <section className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_390px]">
           <div className="rounded-lg border border-slate-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800">
-            <div className="border-b border-slate-200 p-4 dark:border-gray-700"><h3 className="font-semibold text-[#1E3A8A] dark:text-white">Process Automation Rules</h3></div>
+            <div className="border-b border-slate-200 p-4 dark:border-gray-700"><h3 className="font-semibold text-[#1E3A8A] dark:text-white">Stored Workflow Rules</h3></div>
             <div className="divide-y divide-slate-100 dark:divide-gray-700">
               {ruleList.map(rule => (
                 <div key={rule.id} className="flex flex-col gap-3 p-4 lg:flex-row lg:items-center lg:justify-between">
@@ -363,7 +369,7 @@ export default function Flow() {
                   </div>
                 </div>
               ))}
-              {ruleList.length === 0 && <p className="p-8 text-center text-sm text-slate-500 dark:text-slate-400">No automation rules yet.</p>}
+              {ruleList.length === 0 && <p className="p-8 text-center text-sm text-slate-500 dark:text-slate-400">No workflow rules yet. Stored rules do not execute automatically.</p>}
             </div>
           </div>
 
@@ -388,7 +394,8 @@ export default function Flow() {
         <section className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_390px]">
           <div className="space-y-4">
             <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800">
-              <h3 className="font-semibold text-[#1E3A8A] dark:text-white">Baseline Forecast</h3>
+              <h3 className="font-semibold text-[#1E3A8A] dark:text-white">Recorded-spend baseline</h3>
+              <p className="mt-2 text-xs leading-5 text-slate-500 dark:text-slate-400">{forecast?.baseline.method} This is a simple projection, not a trained forecast. {forecast?.baseline.historyCount || 0} historical expenses available.</p>
               <div className="mt-4 grid gap-4 md:grid-cols-3">
                 <Metric icon={WalletCards} label="Monthly burn" value={formatCurrency(forecast?.baseline.monthlyBurn || 0)} caption={`${forecast?.baseline.horizonMonths || 6}-month baseline`} />
                 <Metric icon={BarChart3} label="Projected burn" value={formatCurrency(forecast?.baseline.projectedBurn || 0)} caption={`Confidence: ${forecast?.baseline.confidence || 'low'}`} />
@@ -434,7 +441,7 @@ export default function Flow() {
                 <div key={insight.insightId} className="p-4">
                   <div className="flex flex-wrap items-center gap-2"><Pill value={insight.severity} /><span className="text-xs font-medium uppercase tracking-[0.08em] text-slate-500 dark:text-slate-400">{insight.sourceModule}</span>{insight.id && <Pill value={insight.status} />}</div>
                   <p className="mt-2 font-semibold text-[#1E3A8A] dark:text-white">{insight.title}</p>
-                  <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">Root cause: {insight.rootCause}</p>
+                  <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">Observation: {insight.rootCause}</p>
                   <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">Action: {insight.recommendedAction}</p>
                   {insight.id && insight.status !== 'resolved' && <button onClick={() => updateInsightStatus(insight, 'resolved')} disabled={saving === `insight-${insight.id}`} className="mt-3 flex items-center gap-1 rounded-lg border border-emerald-200 px-3 py-1.5 text-sm font-medium text-emerald-700"><Check className="h-3.5 w-3.5" /> Resolve</button>}
                 </div>

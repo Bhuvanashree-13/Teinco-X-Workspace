@@ -1,3 +1,4 @@
+import { useSearchParams } from 'react-router-dom'
 import { useEffect, useState } from 'react'
 import { apiDelete, apiPost, apiPut, useApi, formatCurrency, formatDate } from '../hooks/useApi'
 import { Search, Filter, Plus, Download, ChevronLeft, ChevronRight, FileText, X, ReceiptIndianRupee, Calculator, CheckCircle2, Pencil, Trash2, RefreshCw } from 'lucide-react'
@@ -22,7 +23,9 @@ const buildCategoryOptions = (categories: any[] = []) => categories
 export default function Expenses() {
   const toast = useToast()
   const [page, setPage] = useState(1)
-  const [search, setSearch] = useState('')
+  const [searchParams] = useSearchParams()
+  const [search, setSearch] = useState(searchParams.get('search') || '')
+  useEffect(() => { setSearch(searchParams.get('search') || ''); setPage(1) }, [searchParams])
   const [expenseType, setExpenseType] = useState('')
   const [showForm, setShowForm] = useState(false)
   const [editingId, setEditingId] = useState<number | null>(null)

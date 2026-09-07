@@ -2,7 +2,11 @@ import { Router } from 'express'
 import { addMonths, endOfMonth, startOfMonth, subMonths } from 'date-fns'
 import { prisma } from '../db.js'
 
+import { requireAuth, requireAdmin } from '../middleware/auth.js'
+import { buildLedgerSignals } from '../lib/flow-intelligence.js'
+
 const router = Router()
+router.use(requireAuth, requireAdmin)
 const toNumber = (value: unknown) => Number(value) || 0
 
 const nextCode = async (prefix: string, count: () => Promise<number>) => {
@@ -14,9 +18,9 @@ const nextCode = async (prefix: string, count: () => Promise<number>) => {
 async function getModuleSnapshot() {
   const now = new Date()
   const currentMonthStart = startOfMonth(now)
-  const currentMonthEnd = endOfMonth(now)
+  const currentMonthEnd = now
   const previousMonthStart = startOfMonth(subMonths(now, 1))
-  const previousMonthEnd = endOfMonth(subMonths(now, 1))
+  const previousMonthEnd = subMonths(now, 1)
   const nextMonthEnd = endOfMonth(addMonths(now, 1))
 
   const [
@@ -66,7 +70,8 @@ async function getModuleSnapshot() {
   const spendDelta = previousSpend ? ((currentSpend - previousSpend) / previousSpend) * 100 : 0
   const peopleCost = toNumber(monthlyPeopleCost._sum.monthlyCost)
   const recurringCommitment = toNumber(recurringMonthly._sum.baseCurrencyAmount)
-  const operatingBurn = currentSpend + peopleCost + recurringCommitment
+  // Ledger already includes posted payroll and recurring expenses. Never add them again.
+  const operatingBurn = currentSpend
 
   return {
     ledger: {
@@ -104,7 +109,7 @@ function buildComputedInsights(snapshot: Awaited<ReturnType<typeof getModuleSnap
       title: 'Expense velocity increased materially month over month',
       severity: 'urgent',
       sourceModule: 'ledger',
-      rootCause: `Ledger spend is ${snapshot.ledger.spendDelta.toFixed(1)}% above the previous month while recurring commitments remain active.`,
+      rootCause: `Recorded month-to-date spend is ${snapshot.ledger.spendDelta.toFixed(1)}% above the comparable elapsed period last month. This does not establish a cause.`,
       recommendedAction: 'Review top categories and pause non-critical vendor spend before approving new commitments.',
       status: 'open',
     })
@@ -113,7 +118,7 @@ function buildComputedInsights(snapshot: Awaited<ReturnType<typeof getModuleSnap
   if (snapshot.people.activeEmployees === 0 && snapshot.schedule.openMilestones > 0) {
     insights.push({
       insightId: 'AUTO-MILESTONE-STAFFING',
-      title: 'Open milestones have no active workforce assigned',
+      title: 'Open milestones with no active employee records',
       severity: 'urgent',
       sourceModule: 'people',
       rootCause: `Schedule has ${snapshot.schedule.openMilestones} open milestones, but People has no active employees.`,
@@ -149,6 +154,23 @@ function buildComputedInsights(snapshot: Awaited<ReturnType<typeof getModuleSnap
   return insights
 }
 
+
+router.get('/intelligence', async (_req, res) => {
+  try {
+    const now = new Date()
+    const start = new Date(now.getTime() - 90 * 86400000)
+    const end = new Date(now.getTime() + 30 * 86400000)
+    const [expenses, upcoming] = await Promise.all([
+      prisma.expense.findMany({ where: { status: 'active', expenseDate: { gte: start, lte: now } }, select: { id: true, expenseId: true, description: true, expenseDate: true, baseCurrencyAmount: true, vendorId: true, invoiceNumber: true }, orderBy: { id: 'asc' } }),
+      prisma.expense.findMany({ where: { status: 'active', isRecurring: true, nextDueDate: { gte: now, lte: end } }, select: { expenseId: true, description: true, nextDueDate: true, baseCurrencyAmount: true }, orderBy: { nextDueDate: 'asc' } }),
+    ])
+    const historyCount = expenses.filter(row => row.expenseDate < new Date(now.getTime() - 30 * 86400000) && toNumber(row.baseCurrencyAmount) > 0).length
+    res.json({ stage: 1, generatedAt: now.toISOString(), windowStart: start.toISOString(), recordsReviewed: expenses.length, anomalyCheck: historyCount >= 10 ? 'available' : 'insufficient_history', historyCount, signals: buildLedgerSignals(expenses, now), upcoming: upcoming.map(row => ({ label: `${row.expenseId} · ${row.description}`, href: `/expenses?search=${encodeURIComponent(row.expenseId)}`, date: row.nextDueDate, amount: toNumber(row.baseCurrencyAmount) })), upcomingTotal: upcoming.reduce((sum, row) => sum + toNumber(row.baseCurrencyAmount), 0) })
+  } catch {
+    res.status(500).json({ error: 'Could not load evidence-based checks' })
+  }
+})
+
 router.get('/overview', async (_req, res) => {
   try {
     const snapshot = await getModuleSnapshot()
@@ -156,7 +178,7 @@ router.get('/overview', async (_req, res) => {
     const riskScore = Math.min(100, computedInsights.reduce((score, insight) => {
       if (insight.severity === 'urgent') return score + 30
       if (insight.severity === 'standard') return score + 15
-      return score + 5
+      return score
     }, 0))
 
     res.json({
@@ -261,7 +283,7 @@ router.post('/automation-rules', async (req, res) => {
 router.put('/automation-rules/:id/status', async (req, res) => {
   try {
     const data: any = { status: req.body.status }
-    if (req.body.status === 'active') data.lastRunAt = new Date()
+    // Activating a stored rule does not mean it has executed.
     const rule = await prisma.flowAutomationRule.update({
       where: { id: Number(req.params.id) },
       data,
@@ -277,7 +299,13 @@ router.get('/forecast', async (_req, res) => {
   try {
     const snapshot = await getModuleSnapshot()
     const scenarios = await prisma.forecastScenario.findMany({ orderBy: { createdAt: 'desc' } })
-    const baselineBurn = snapshot.ledger.operatingBurn || snapshot.people.monthlyPeopleCost || snapshot.ledger.currentMonthSpend
+    const completedMonthStart = startOfMonth(new Date())
+    const history = await prisma.expense.aggregate({
+      where: { status: 'active', expenseDate: { gte: subMonths(completedMonthStart, 3), lt: completedMonthStart } },
+      _sum: { baseCurrencyAmount: true },
+      _count: true,
+    })
+    const baselineBurn = toNumber(history._sum.baseCurrencyAmount) / 3
     const horizonMonths = 6
     const projectedBurn = baselineBurn * horizonMonths
     const projectedHeadcount = snapshot.people.activeEmployees
@@ -294,12 +322,14 @@ router.get('/forecast', async (_req, res) => {
         projectedBurn,
         projectedHeadcount,
         staffingPressure,
-        confidence: baselineBurn > 0 || projectedHeadcount > 0 ? 'medium' : 'low',
+        confidence: 'not calibrated',
+        method: 'Average recorded ledger spend across the last 3 completed calendar months, including zero-spend months. Payroll and recurring entries are not added again.',
+        historyCount: history._count,
       },
       scenarios: scenarios.map(scenario => {
-        const monthlyBurn = toNumber(scenario.assumedMonthlyBurn) || baselineBurn
+        const monthlyBurn = toNumber(scenario.assumedMonthlyBurn)
         const monthlyRevenue = toNumber(scenario.assumedMonthlyRevenue)
-        const netBurn = Math.max(monthlyBurn - monthlyRevenue, 0)
+        const netBurn = monthlyBurn - monthlyRevenue
         return {
           ...scenario,
           assumedMonthlyRevenue: monthlyRevenue,
