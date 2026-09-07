@@ -403,7 +403,7 @@ Admins and employees can sign in with Google using their existing, active worksp
 
 The server verifies Google's signature, audience, issuer, expiry, verified email, and a browser-bound nonce before issuing the normal workspace session. Linked accounts are identified by Google's stable subject ID. Unknown or inactive users are rejected. First-time employee Google sign-in closes the pending first-password setup path; existing configured passwords still work. A Google-only employee will need a password reset before using password login.
 
-When Google configuration is absent, password sign-in remains available and the Google button is hidden. Production must use HTTPS for the sign-in challenge cookie. If a reverse proxy sets Cross-Origin-Opener-Policy, use `same-origin-allow-popups` so Google popup login can work. Native React Native sign-in is unchanged.
+When Google configuration is absent, password sign-in remains available and a disabled Sign in with Google button explains that workspace setup is pending. Production must use HTTPS for the sign-in challenge cookie. If a reverse proxy sets Cross-Origin-Opener-Policy, use `same-origin-allow-popups` so Google popup login can work. Native React Native sign-in is unchanged.
 
 Validation: `npm run test:schema`, `npm run test:auth`, and `npm run build`. To smoke-test deployment, sign in with a provisioned admin and employee, verify their respective access, then confirm an unprovisioned account is refused. Real Google popup testing requires the configured client ID and an authorized origin.
 

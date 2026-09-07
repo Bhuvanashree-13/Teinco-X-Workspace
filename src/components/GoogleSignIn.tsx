@@ -101,11 +101,12 @@ export default function GoogleSignIn({ disabled, onBusy }: { disabled: boolean; 
     return () => { cancelled = true; window.clearTimeout(refresh) }
   }, [attempt, onBusy])
 
-  if (enabled === false) return null
   return <div className="mt-5 space-y-3">
     <div className="flex items-center gap-3 text-xs text-slate-400"><span className="h-px flex-1 bg-slate-200 dark:bg-gray-700" />or<span className="h-px flex-1 bg-slate-200 dark:bg-gray-700" /></div>
-    <div ref={button} className={disabled || !ready ? 'pointer-events-none flex justify-center opacity-50' : 'flex justify-center'} />
-    {!ready && !error && <p className="text-center text-xs text-slate-500" role="status">Loading Google sign-in…</p>}
+    {!ready && <button type="button" disabled aria-describedby="google-signin-status" className="flex min-h-10 w-full items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-600 disabled:cursor-not-allowed dark:border-gray-600 dark:bg-gray-900 dark:text-slate-300">Sign in with Google</button>}
+    <div ref={button} className={!ready ? 'hidden' : disabled ? 'pointer-events-none flex justify-center opacity-50' : 'flex justify-center'} />
+    {enabled === false && <p id="google-signin-status" className="text-center text-xs text-slate-500 dark:text-slate-400" role="status">Google sign-in is awaiting workspace setup. Please use your email and password for now.</p>}
+    {enabled !== false && !ready && !error && <p id="google-signin-status" className="text-center text-xs text-slate-500" role="status">Loading Google sign-in…</p>}
     {error && <div className="text-sm text-red-700 dark:text-red-400" role="alert">{error}<button type="button" disabled={disabled} onClick={() => { setError(''); setAttempt(value => value + 1) }} className="ml-2 underline">Retry</button></div>}
     {ready && <p className="text-center text-xs text-slate-500 dark:text-slate-400">Admins and employees: use the Google account matching your workspace email.</p>}
   </div>
