@@ -8,11 +8,25 @@ Forecast baseline: average recorded expenses across the previous three completed
 
 Validation: npm run test:intelligence; npm run build. Review actual expense evidence before acting. No schema changes or model credentials required.
 
-## Stage 2 — Ask AI (next; not implemented)
+## Stage 2 — Ask AI (implemented; model configuration required)
 
-Add natural-language questions grounded in authorized records, with server-enforced permissions, source links, retrieval timestamps, insufficient-evidence responses, and read-only tools. Select a reachable LLM deployment (for example an independently hosted Ollama service) and configure server-side credentials/endpoints. Do not expose the database or provider credentials to the browser. Treat record content as untrusted data. Do not promise pgvector on the current MySQL database; choose a separate retrieval store only if necessary.
+Flow → Ask AI is an admin-only, read-only question interface for month-to-date, last completed month, and year-to-date ledger facts. Each question is independent. Retrieval uses a consistent database transaction, includes all matching expense/deposit totals, and caps category/vendor rankings at 20 and largest expenses at 10. Coverage and retrieval timestamps are displayed. Citations open the expense or deposit register with the period filter, or search for the individual expense ID.
 
-Acceptance: cited totals reconcile with deterministic analytics; employee requests cannot retrieve company-wide or other employees’ data; retrieved instructions cannot invoke writes; unsupported questions produce a clear limitation.
+The model selects relevant fact IDs using structured JSON. The server validates every ID and renders the original computed facts, not generated numbers, prose, or URLs. Requests have a 1,000-character question limit; model calls time out after 45 seconds; provider response bodies are capped at 64 KiB. No tool definitions, SQL generation, write operations, credentials, employee details, or arbitrary network targets are exposed to the model. Record text is untrusted data. Employees cannot access the Flow Ask AI routes, even with a forged request body. This initial release does not provide employee self-service questions.
+
+Unsupported questions should return insufficient evidence. The schema and source validation guarantee that displayed facts exist; relevance selection still depends on the configured model and must be tested against your business questions. Causes, forecasts, record changes, other date ranges, attachments, subscriptions, and external ERP records are outside this release. This uses structured record retrieval, not embeddings or pgvector.
+
+### Configure Ollama on the app server
+
+- `ASK_AI_OLLAMA_URL`: base URL of an Ollama server reachable from the Railway app, without `/api/chat`.
+- `ASK_AI_MODEL`: exact installed model name that supports structured output.
+- `ASK_AI_API_KEY`: optional bearer token for an authenticated gateway. Store it only in server variables, never in a Vite variable or Git.
+
+Use your approved private service or an authenticated HTTPS gateway. A localhost URL on Railway refers to that container, not your laptop. The operator must approve this service to receive the question and retrieved financial facts. This implementation uses Ollama's `/api/chat` structured-output API; Ollama Cloud does not currently support structured outputs. No model is downloaded or provisioned automatically. Missing configuration leaves the question button disabled, with View available facts still usable. Configured-but-unreachable services produce an explicit error; configuration presence is not a connectivity check.
+
+Validation: `npm run test:ask`, `npm run test:intelligence`, and `npm run build`. Run a real model acceptance test after configuration: ask about totals, category/vendor rankings, largest expenses, unsupported periods and actions, and injected instructions in record names. Check relevance and citation filters as well as exact totals. Provider tests in the repository mock model replies; they are not a live-model evaluation.
+
+References: https://docs.ollama.com/api/chat and https://docs.ollama.com/capabilities/structured-outputs
 
 ## Stage 3 — Predictive models (not implemented)
 

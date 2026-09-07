@@ -5,8 +5,11 @@ import { prisma } from '../db.js'
 import { requireAuth, requireAdmin } from '../middleware/auth.js'
 import { buildLedgerSignals } from '../lib/flow-intelligence.js'
 
+import askAiRoutes from './ask-ai.js'
+
 const router = Router()
 router.use(requireAuth, requireAdmin)
+router.use('/ask', askAiRoutes)
 const toNumber = (value: unknown) => Number(value) || 0
 
 const nextCode = async (prefix: string, count: () => Promise<number>) => {

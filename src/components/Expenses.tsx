@@ -38,7 +38,7 @@ export default function Expenses() {
   const [rateDate, setRateDate] = useState('')
   const [rateRefresh, setRateRefresh] = useState(0)
   const [limit] = useState(20)
-  const { data, loading, refetch } = useApi(`/expenses?page=${page}&limit=${limit}&search=${encodeURIComponent(search)}&expenseType=${expenseType}`)
+  const { data, loading, refetch } = useApi(`/expenses?page=${page}&limit=${limit}&search=${encodeURIComponent(search)}&expenseType=${expenseType}&startDate=${encodeURIComponent(searchParams.get('startDate') || '')}&endDate=${encodeURIComponent(searchParams.get('endDate') || '')}`)
   const { data: vendors } = useApi<any[]>('/vendors?isActive=true')
   const { data: categories } = useApi<any[]>('/categories')
 
@@ -170,6 +170,7 @@ export default function Expenses() {
 
   return (
     <div className="space-y-6">
+      {(searchParams.get('startDate') || searchParams.get('endDate')) && <p className="rounded-lg border p-3 text-sm text-slate-600 dark:border-gray-700 dark:text-slate-300">Evidence date filter: {searchParams.get('startDate')} to {searchParams.get('endDate')}</p>}
       <div className="mobile-page-header">
         <div>
           <h2 className="brand-heading">Expenses</h2>

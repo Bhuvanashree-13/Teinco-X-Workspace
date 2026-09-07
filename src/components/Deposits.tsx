@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { ArrowDownToLine, BadgeIndianRupee, Building2, CheckCircle2, Landmark, Pencil, Plus, X } from 'lucide-react'
 import { apiPost, apiPut, formatCurrency, formatDate, useApi } from '../hooks/useApi'
 
@@ -17,7 +18,8 @@ export default function Deposits() {
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
-  const { data, loading, refetch } = useApi<any>('/deposits')
+  const [searchParams] = useSearchParams()
+  const { data, loading, refetch } = useApi<any>(`/deposits?startDate=${encodeURIComponent(searchParams.get('startDate') || '')}&endDate=${encodeURIComponent(searchParams.get('endDate') || '')}`)
   const amount = Number(form.originalAmount) || 0
   const rate = form.originalCurrency === 'INR' ? 1 : Number(form.exchangeRate) || 0
   const inrAmount = Math.round(amount * rate * 100) / 100
@@ -66,6 +68,7 @@ export default function Deposits() {
 
   return (
     <div className="space-y-6">
+      {(searchParams.get('startDate') || searchParams.get('endDate')) && <p className="rounded-lg border p-3 text-sm dark:border-gray-700">Evidence date filter: {searchParams.get('startDate')} to {searchParams.get('endDate')}</p>}
       <div className="mobile-page-header rounded-2xl bg-gradient-to-r from-[#1E3A8A] to-[#3157b7] p-5 text-white shadow-lg shadow-blue-950/10 sm:p-6">
         <div><p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-200">Cash inflow</p><h2 className="mt-1 text-2xl font-semibold">Deposits</h2><p className="mt-1 text-sm text-blue-100">Record money received and track its INR value</p></div>
         <button onClick={openNew} className="brand-primary-button"><Plus className="h-4 w-4" /> Add deposit</button>

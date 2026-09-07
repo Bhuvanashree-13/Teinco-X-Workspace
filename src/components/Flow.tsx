@@ -1,3 +1,4 @@
+import AskAI from './AskAI'
 import { useState, type FormEvent } from 'react'
 import FlowIntelligence from './FlowIntelligence'
 import { Link } from 'react-router-dom'
@@ -131,6 +132,7 @@ const insightDefaults = {
 const tabs = [
   { id: 'command', label: 'Overview', icon: Gauge },
   { id: 'intelligence', label: 'Checks', icon: ShieldCheck },
+  { id: 'ask', label: 'Ask AI', icon: Bot },
   { id: 'automation', label: 'Automation', icon: Bot },
   { id: 'forecast', label: 'Forecast', icon: TrendingUp },
   { id: 'insights', label: 'Insights', icon: BrainCircuit },
@@ -193,8 +195,8 @@ export default function Flow() {
   const scenarioList = forecast?.scenarios || []
   const modules = overview?.modules
   const refreshing = overviewLoading || rulesLoading || forecastLoading || insightsLoading
-  const tabLoading = activeTab === 'intelligence' ? false : activeTab === 'automation' ? rulesLoading : activeTab === 'forecast' ? forecastLoading : activeTab === 'insights' ? insightsLoading : overviewLoading
-  const tabError = activeTab === 'intelligence' ? null : activeTab === 'automation' ? rulesError : activeTab === 'forecast' ? forecastError : activeTab === 'insights' ? insightsError : overviewError
+  const tabLoading = ['intelligence', 'ask'].includes(activeTab) ? false : activeTab === 'automation' ? rulesLoading : activeTab === 'forecast' ? forecastLoading : activeTab === 'insights' ? insightsLoading : overviewLoading
+  const tabError = ['intelligence', 'ask'].includes(activeTab) ? null : activeTab === 'automation' ? rulesError : activeTab === 'forecast' ? forecastError : activeTab === 'insights' ? insightsError : overviewError
   const moduleCards = [
     { name: 'Finance', icon: WalletCards, to: '/expenses', tone: 'text-blue-600 bg-blue-50 dark:text-blue-300 dark:bg-blue-950/60', value: formatCurrency(modules?.ledger.currentMonthSpend || 0), label: 'Current month spending', secondary: `${formatCurrency(modules?.ledger.recurringMonthlyCommitment || 0)} recurring ledger expenses`, action: 'Review expenses' },
     { name: 'People', icon: Users, to: '/people', tone: 'text-violet-600 bg-violet-50 dark:text-violet-300 dark:bg-violet-950/60', value: String(modules?.people.activeEmployees || 0), label: 'Active employees', secondary: `${formatCurrency(modules?.people.monthlyPeopleCost || 0)} monthly people cost`, action: 'Manage people' },
@@ -326,6 +328,7 @@ export default function Flow() {
       </div>
       {tabLoading ? <div className="rounded-xl border border-slate-200 p-8 text-center text-sm text-slate-500 dark:border-gray-700 dark:text-slate-300" role="status">Loading {tabs.find(tab => tab.id === activeTab)?.label.toLowerCase()}…</div> : tabError ? <div role="alert" className="rounded-xl border border-red-200 p-5 text-red-700 dark:border-red-900 dark:text-red-300">Could not load this view. <button type="button" onClick={refreshFlow} className="underline">Try again</button></div> : null}
 
+      {activeTab === 'ask' && <AskAI />}
       {activeTab === 'intelligence' && <FlowIntelligence />}
 
       {activeTab === 'command' && !tabLoading && !tabError && overview && (

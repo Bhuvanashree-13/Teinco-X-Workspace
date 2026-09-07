@@ -7,15 +7,19 @@ const supportedCurrencies = new Set(['INR', 'USD', 'EUR'])
 
 router.use(requireAuth, requireAdmin)
 
-router.get('/', async (_req, res) => {
+router.get('/', async (req, res) => {
   try {
+    const start = req.query.startDate ? new Date(String(req.query.startDate)) : null
+    const end = req.query.endDate ? new Date(String(req.query.endDate)) : null
+    if ((start && !Number.isFinite(start.getTime())) || (end && !Number.isFinite(end.getTime())) || (start && end && start > end)) return res.status(400).json({ error: 'Invalid deposit date range' })
+    const where = { status: 'received', ...((start || end) ? { depositDate: { ...(start ? { gte: start } : {}), ...(end ? { lte: end } : {}) } } : {}) }
     const deposits = await prisma.deposit.findMany({
-      where: { status: 'received' },
+      where,
       orderBy: [{ depositDate: 'desc' }, { id: 'desc' }],
       take: 250,
     })
     const total = await prisma.deposit.aggregate({
-      where: { status: 'received' },
+      where,
       _sum: { baseCurrencyAmount: true },
     })
     res.json({
