@@ -1,10 +1,12 @@
 import { useState } from 'react'
-import { useApi } from '../hooks/useApi'
-import { Building2, Wallet, Database } from 'lucide-react'
+import { apiPut, useApi } from '../hooks/useApi'
+import { Building2, Wallet, Database, Bot } from 'lucide-react'
 import { FormSkeleton } from './Skeleton'
 
 export default function Settings() {
-  const { data: settings, loading } = useApi('/settings')
+  const { data: settings, loading, error, refetch } = useApi('/settings')
+  const [message, setMessage] = useState('')
+  const [saveError, setSaveError] = useState(false)
   const [saving, setSaving] = useState(false)
   const [formData, setFormData] = useState<any>({})
 
@@ -20,15 +22,16 @@ export default function Settings() {
 
   const handleSave = async () => {
     setSaving(true)
+    setMessage('')
+    setSaveError(false)
     try {
-      await fetch('/api/settings', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...settings, ...formData })
-      })
-      window.location.reload()
+      await apiPut('/settings', formData)
+      setFormData({})
+      await refetch()
+      setMessage('Settings saved.')
     } catch (e) {
-      alert('Failed to save settings')
+      setSaveError(true)
+      setMessage(e instanceof Error ? e.message : 'Failed to save settings')
     } finally {
       setSaving(false)
     }
@@ -41,13 +44,14 @@ export default function Settings() {
   const current = { ...settings, ...formData }
 
   return (
-    <div className="space-y-6 max-w-3xl">
+    <div className="mx-auto w-full max-w-7xl space-y-6">
       <div>
         <h2 className="brand-heading">Settings</h2>
         <p className="brand-caption mt-1">Configure your Teinco-X Workspace application</p>
       </div>
 
-      <div className="space-y-6">
+      {error && <p role="alert" className="text-red-700">Could not load settings. <button onClick={() => void refetch()} className="underline">Retry</button></p>}
+      <fieldset disabled={saving || !!error} className="grid min-w-0 items-start gap-6 xl:grid-cols-2">
         {/* Company */}
         <div className="brand-card p-6 dark:border-gray-700 dark:bg-gray-800">
           <div className="flex items-center gap-2 mb-4">
@@ -176,7 +180,17 @@ export default function Settings() {
           </div>
         </div>
 
-        <div className="flex justify-end">
+        <div className="brand-card p-6 dark:border-gray-700 dark:bg-gray-800">
+          <div className="mb-4 flex items-center gap-2"><Bot className="h-5 w-5" /><h3 className="text-lg font-semibold dark:text-white">Ask AI connection</h3></div>
+          <p className="text-sm leading-6 text-slate-600 dark:text-slate-300">Ask AI uses Ollama to select verified workspace facts. Configure the connection on the computer or server running this application.</p>
+          <dl className="mt-4 space-y-4 text-sm">
+            <div><dt className="font-medium">Server environment variables</dt><dd className="mt-2 break-all rounded-lg bg-slate-50 p-3 font-mono text-xs leading-6 dark:bg-gray-900">ASK_AI_OLLAMA_URL<br />ASK_AI_MODEL<br />ASK_AI_API_KEY (optional gateway credential)</dd></div>
+            <div><dt className="font-medium">After configuration</dt><dd className="mt-1 text-slate-600 dark:text-slate-300">Restart the app server, then open Flow → Ask AI → Test connection. The test uses sample facts.</dd></div>
+          </dl>
+          <p className="mt-4 text-xs leading-5 text-slate-500 dark:text-slate-400">A hosted app needs an endpoint reachable from its server. Keep gateway credentials in server environment variables.</p>
+        </div>
+        <div className="sticky bottom-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800 xl:col-span-2">
+          <p role={saveError ? 'alert' : 'status'} className={`text-sm ${saveError ? 'text-red-700 dark:text-red-300' : 'text-slate-600 dark:text-slate-300'}`}>{message || 'Changes apply to your workspace.'}</p>
           <button
             onClick={handleSave}
             disabled={saving}
@@ -185,7 +199,7 @@ export default function Settings() {
             {saving ? 'Saving...' : 'Save Settings'}
           </button>
         </div>
-      </div>
+      </fieldset>
     </div>
   )
 }

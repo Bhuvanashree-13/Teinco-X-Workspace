@@ -8,6 +8,9 @@ delete process.env.ASK_AI_OLLAMA_URL
 delete process.env.ASK_AI_MODEL
 const { prisma } = await import('../server/db.js')
 const { default: flow } = await import('../server/routes/flow.js')
+// Prisma may load the local .env during import. Keep disabled-config tests isolated.
+delete process.env.ASK_AI_OLLAMA_URL
+delete process.env.ASK_AI_MODEL
 test('Ask AI blocks employees before retrieval and reconciles evidence with database aggregates', async () => {
   const restorations: (() => void)[] = []
   function replace(model: any, method: string, fn: any) { const original = model[method]; restorations.push(() => { model[method] = original }); model[method] = fn }
@@ -29,10 +32,13 @@ test('Ask AI blocks employees before retrieval and reconciles evidence with data
   try {
     assert.equal((await fetch(`${base}/context?period=month`)).status, 401)
     assert.equal((await fetch(`${base}/context?period=month`, { headers })).status, 403)
+    assert.equal((await fetch(`${base}/test`, { method: 'POST', headers, body: '{}' })).status, 403)
     assert.equal(reads, 0)
     role = 'admin'
     const config = await (await fetch(`${base}/config`, { headers })).json()
     assert.equal(config.enabled, false)
+    assert.equal(config.model, null)
+    assert.equal((await fetch(`${base}/test`, { method: 'POST', headers, body: '{}' })).status, 503)
     assert.equal((await fetch(base, { method: 'POST', headers, body: JSON.stringify({ period: 'month', question: 'How much did we spend?' }) })).status, 503)
     assert.equal(reads, 0)
     assert.equal((await fetch(`${base}/context?period=arbitrary`, { headers })).status, 400)

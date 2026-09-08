@@ -42,7 +42,25 @@ export async function retrieveAskContext(period: z.infer<typeof periodSchema>): 
   for (const [index, row] of largest.entries()) facts.push({ id: `expense-${index}`, text: `Expense rank ${index + 1}: ${row.expenseId}, ${money(Number(row.baseCurrencyAmount))}, dated ${row.expenseDate.toISOString().slice(0, 10)}.`, amount: Number(row.baseCurrencyAmount), source: { label: row.expenseId, href: `/expenses?search=${encodeURIComponent(row.expenseId)}` } })
   return { period, start: start.toISOString(), end: end.toISOString(), retrievedAt: now.toISOString(), facts, coverage: ['Totals cover all matching active expenses and received deposits. Dates follow the server timezone, as in dashboard analytics.', `Rankings include up to 20 of ${categoryRows.length} categories, 20 of ${vendorRows.filter(row => row.kind === 'vendor').length} vendors, and the 10 largest expenses.`, 'No invoice attachments, private employee details, subscriptions, causes, predictions, or external ERP data are included. Each question is independent.'] }
 }
-router.get('/config', (_req, res) => { res.set('Cache-Control', 'no-store'); res.json({ enabled: Boolean(ollamaConfiguration()), provider: 'Ollama', readOnly: true }) })
+router.get('/config', (_req, res) => {
+  const config = ollamaConfiguration()
+  res.set('Cache-Control', 'no-store')
+  res.json({ enabled: Boolean(config), provider: 'Ollama', model: config?.model || null, readOnly: true })
+})
+router.post('/test', async (_req, res) => {
+  const config = ollamaConfiguration()
+  if (!config) return res.status(503).json({ error: 'Set ASK_AI_OLLAMA_URL and ASK_AI_MODEL on the app server, then restart it.' })
+  try {
+    const now = new Date().toISOString()
+    const answer = await answerWithOllama('How much was spent in the selected period?', {
+      period: 'month', start: now, end: now, retrievedAt: now, coverage: [],
+      facts: [{ id: 'spend-total', text: 'Recorded spending is INR 100 in the selected period.', source: { label: 'Connection test', href: '/flow' } }],
+    }, config)
+    if (answer.status !== 'answered' || !answer.facts.length) throw new Error('Invalid answer')
+    res.set('Cache-Control', 'no-store')
+    res.json({ message: `Connected to ${config.model}. Verified answer test passed.` })
+  } catch { res.status(502).json({ error: 'Could not verify the model connection. Check the server endpoint, installed model, and gateway credentials.' }) }
+})
 router.get('/context', async (req, res) => {
   const parsed = periodSchema.safeParse(req.query.period)
   if (!parsed.success) return res.status(400).json({ error: 'Select a supported reporting period.' })

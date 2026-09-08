@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "concurrently \"npm run server:dev\" \"npm run client:dev\"",
-    "server:dev": "tsx watch server/index.ts",
+    "server:dev": "tsx watch --env-file=.env server/index.ts",
     "client:dev": "vite",
     "mobile:dev": "npm --prefix mobile start",
     "mobile:android": "npm --prefix mobile run android",

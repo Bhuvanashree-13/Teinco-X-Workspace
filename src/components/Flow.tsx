@@ -295,7 +295,7 @@ export default function Flow() {
   }
 
   return (
-    <div className="space-y-6 text-slate-800 dark:text-slate-200">
+    <div className="mx-auto w-full max-w-7xl space-y-6 text-slate-800 dark:text-slate-200">
       <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
         <div>
           <p className="text-sm font-semibold uppercase tracking-[0.12em] text-slate-600 dark:text-slate-300">Teinco-X Flow</p>

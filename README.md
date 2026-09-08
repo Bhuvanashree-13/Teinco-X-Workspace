@@ -408,3 +408,12 @@ When Google configuration is absent, password sign-in remains available and a di
 Validation: `npm run test:schema`, `npm run test:auth`, and `npm run build`. To smoke-test deployment, sign in with a provisioned admin and employee, verify their respective access, then confirm an unprovisioned account is refused. Real Google popup testing requires the configured client ID and an authorized origin.
 
 Reference: [Google server-side ID token verification](https://developers.google.com/identity/gsi/web/guides/verify-google-id-token).
+
+
+### Ask AI model connection
+
+Local development reads `.env` when running `npm run dev`. Set `ASK_AI_OLLAMA_URL` to your Ollama base URL (for example `http://127.0.0.1:11434`) and `ASK_AI_MODEL` to an installed model from `ollama list`. Optionally set `ASK_AI_API_KEY` for an authenticated Ollama gateway. Restart the app server after changing these values.
+
+For a hosted deployment, set these variables on the application service. The endpoint must be reachable from that server; localhost refers to the hosted server, not your computer. Never put gateway credentials in `VITE_` variables.
+
+Open Flow → Ask AI → Test connection to verify model output using synthetic facts without reading financial records. Requests allow up to two minutes for local CPU inference. Ask AI returns only validated, sourced workspace facts; the model cannot modify records. Settings includes connection setup guidance.
