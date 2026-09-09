@@ -11,6 +11,7 @@
     "mobile:android": "npm --prefix mobile run android",
     "mobile:ios": "npm --prefix mobile run ios",
     "mobile:check": "npm --prefix mobile run typecheck",
+    "test:mobile": "tsx --test tests/mobile-native.test.ts",
     "mobile:apk": "npm --prefix mobile run build:apk",
     "build": "npm run client:build && npm run server:build",
     "client:build": "tsc && vite build",

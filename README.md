@@ -46,6 +46,14 @@ npm run mobile:dev
 
 Use `npm run mobile:android` to compile and install a development build on an emulator or USB-connected device. Admins receive dashboard, expense, and subscription access. Employees receive their privacy-scoped workspace view and shared subscription access. JWT credentials are stored in the native Android Keystore/iOS Keychain.
 
+Version 2.0.0 replaces the embedded website with native React Native screens, native stack navigation, and Home / Finance / People / Schedule / More tabs. Finance is the primary workflow: searchable paginated expenses with category/vendor/period filters, deposit capture and edits, vendor management, subscription management, native spending breakdowns, and transaction summary sharing. Forms use native date/time pickers, searchable lookup sheets, validation, and unsaved-change protection.
+
+People screens include a directory, attendance capture, leave requests and approval, leave balances, payslip details and payment references, payroll batch creation, and HR tasks. Schedule includes a day agenda, event creation, and milestones. Native Flow screens expose evidence checks, sourced Ask AI, automation rules, insights, and forecast scenarios. Employees only see permitted modules; administrative mutations are hidden from employee accounts. Ask AI requires a model configured on the hosted API server.
+
+All screens use the existing API directly. There is no WebView dependency or embedded HTML. Android retains a small storage-cleanup module to remove sessions left by version 1.1.0 during upgrade and sign-out. This release is online-first: offline sync, camera receipt uploads, push notifications, and PDF/Excel file import/export are not implemented. Native sharing sends an explicit transaction or payslip text summary through Android's share sheet.
+
+Validate with `npm run mobile:check`, `npm run test:mobile`, and `npm run mobile:apk`. The native tests cover role permissions, finance payloads, decimal values, dates, validation, and source navigation without writing to the production database. Device acceptance checks should cover login, keyboard/date pickers, adding and editing test expenses/deposits, filters and paging, returning from edits, cancelling unsaved changes, employee access, sign-out, and connectivity recovery.
+
 #### Build a standalone Android APK
 
 The release APK runs independently after installation; no cloud build account, QR code, or Metro development server is required. Install JDK 17 and Android Studio with the Android SDK first, then set `JAVA_HOME` and `ANDROID_HOME`.
@@ -417,3 +425,16 @@ Local development reads `.env` when running `npm run dev`. Set `ASK_AI_OLLAMA_UR
 For a hosted deployment, set these variables on the application service. The endpoint must be reachable from that server; localhost refers to the hosted server, not your computer. Never put gateway credentials in `VITE_` variables.
 
 Open Flow → Ask AI → Test connection to verify model output using synthetic facts without reading financial records. Requests allow up to two minutes for local CPU inference. Ask AI returns only validated, sourced workspace facts; the model cannot modify records. Settings includes connection setup guidance.
+
+### Android 2.0.1 Google sign-in
+
+The launcher name is Teinco-X with a branded adaptive icon. Bottom tabs reserve Android navigation insets and enough height for icons and labels. Google sign-in uses the native SDK; email/password remains available.
+
+Setup required on the workspace server:
+
+1. Create an Android OAuth client in the same Google Cloud project as the existing Web client. Package: `ai.teincox.finance`. Internal APK SHA-1: `5E:8F:16:06:2E:A3:CD:2C:4A:0D:54:78:76:BA:A6:F3:8C:AB:F6:25`.
+2. Set `GOOGLE_ANDROID_CLIENT_ID` to the Android client ID. Keep `GOOGLE_CLIENT_ID` as the Web client ID. Never put a client secret into the APK.
+3. Deploy the updated server. `/api/auth/google/native/config` reports enabled once configured. Token exchange verifies Google's token signature, audience, Android presenter, verified email, and active workspace access. Browser cookie/nonce checks remain enforced.
+4. Test on a phone with an existing workspace account. Phone sign-in is not yet verified. A differently signed APK requires its own registered SHA-1.
+
+Official guide: https://react-native-google-signin.github.io/docs/setting-up/get-config-file
