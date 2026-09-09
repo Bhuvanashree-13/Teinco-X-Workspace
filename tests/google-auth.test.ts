@@ -30,6 +30,7 @@ const address = server.address() as { port: number }
 const base = `http://127.0.0.1:${address.port}/api/auth/google`
 
 beforeEach(() => {
+  process.env.GOOGLE_ANDROID_CLIENT_ID = 'android-client.apps.googleusercontent.com'
   process.env.GOOGLE_CLIENT_ID = 'test-client.apps.googleusercontent.com'
   identity = { sub: 'google-user-1', email: 'person@gmail.com', email_verified: true }
   account = { id: 42, email: identity.email, role: 'employee', employeeId: 12, googleSubject: null, isActive: true, password: 'existing-password-hash' }
@@ -163,4 +164,39 @@ test('missing configuration hides Google login and fails closed', async () => {
   delete process.env.GOOGLE_CLIENT_ID
   assert.deepEqual(await (await fetch(`${base}/config`)).json(), { enabled: false })
   assert.equal((await signIn()).status, 503)
+})
+
+async function nativeSignIn() {
+  return fetch(`${base}/native`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ credential: 'test-credential', role: 'admin' }) })
+}
+test('native Google sign-in verifies the Android presenter and preserves workspace role', async () => {
+  identity.azp = process.env.GOOGLE_ANDROID_CLIENT_ID
+  const response = await nativeSignIn()
+  assert.equal(response.status, 200)
+  assert.equal((await response.json()).user.role, 'employee')
+})
+test('native Google sign-in rejects a different OAuth presenter', async () => {
+  identity.azp = 'untrusted-client'
+  assert.equal((await nativeSignIn()).status, 401)
+  assert.equal(lookups.length, 0)
+})
+test('native Google sign-in rejects missing presenter and invalid tokens', async () => {
+  assert.equal((await nativeSignIn()).status, 401)
+  identity.azp = process.env.GOOGLE_ANDROID_CLIENT_ID
+  rejectVerification = true
+  assert.equal((await nativeSignIn()).status, 401)
+  assert.equal(writes.length, 0)
+})
+test('native login is unavailable until Android OAuth is configured', async () => {
+  delete process.env.GOOGLE_ANDROID_CLIENT_ID
+  assert.deepEqual(await (await fetch(`${base}/native/config`)).json(), { enabled: false })
+  assert.equal((await nativeSignIn()).status, 503)
+})
+test('native sign-in still refuses unknown and inactive workspace users', async () => {
+  identity.azp = process.env.GOOGLE_ANDROID_CLIENT_ID
+  account.isActive = false
+  assert.equal((await nativeSignIn()).status, 403)
+  account = null
+  assert.equal((await nativeSignIn()).status, 403)
+  assert.equal(writes.length, 0)
 })

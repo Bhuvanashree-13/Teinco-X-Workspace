@@ -32,15 +32,23 @@ export function createGoogleAuthRouter(session: {
     res.json({ enabled: true, clientId: clientId(), nonce })
   })
 
-  router.post('/', async (req, res) => {
+  router.get('/native/config', (_req, res) => {
+    res.set('Cache-Control', 'no-store')
+    res.json(clientId() && secret() && process.env.GOOGLE_ANDROID_CLIENT_ID?.trim()
+      ? { enabled: true, clientId: clientId() } : { enabled: false })
+  })
+
+  router.post(['/', '/native'], async (req, res) => {
+    const native = req.path === '/native'
     res.set('Cache-Control', 'no-store')
     if (!clientId() || !secret()) return res.status(503).json({ error: 'Google sign-in is not configured.' })
+    if (native && !process.env.GOOGLE_ANDROID_CLIENT_ID?.trim()) return res.status(503).json({ error: 'Android Google sign-in is not configured.' })
     if (!req.is('application/json') || typeof req.body.credential !== 'string' || req.body.credential.length > 16000) {
       return res.status(400).json({ error: 'A Google sign-in credential is required.' })
     }
 
-    let nonce: string
-    try {
+    let nonce: string | undefined
+    if (!native) try {
       const cookie = req.headers.cookie?.split(';').map(part => part.trim()).find(part => part.startsWith(`${cookieName}=`))
       const challenge = cookie?.slice(cookieName.length + 1)
       if (!challenge) throw new Error('Missing challenge')
@@ -55,7 +63,8 @@ export function createGoogleAuthRouter(session: {
     try {
       const ticket = await google.verifyIdToken({ idToken: req.body.credential, audience: clientId()! })
       identity = ticket.getPayload()
-      if (!identity?.sub || !identity.email || !identity.email_verified || (identity as jwt.JwtPayload).nonce !== nonce) {
+      if (!identity?.sub || !identity.email || !identity.email_verified ||
+        (native ? (identity as jwt.JwtPayload).azp !== process.env.GOOGLE_ANDROID_CLIENT_ID?.trim() : (identity as jwt.JwtPayload).nonce !== nonce)) {
         throw new Error('Invalid Google identity')
       }
     } catch {
