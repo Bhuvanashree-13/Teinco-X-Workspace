@@ -71,7 +71,7 @@ router.post('/', async (req: AuthedRequest, res) => {
   const parsed = requestSchema.safeParse(req.body)
   if (!parsed.success) return res.status(400).json({ error: 'Enter a question of 3–1000 characters and select a supported period.' })
   const config = ollamaConfiguration()
-  if (!config) return res.status(503).json({ error: 'Ask AI is awaiting model configuration. You can still view the available facts.' })
+  if (!config) return res.status(503).json({ error: 'Vyom is awaiting model configuration. You can still view the available facts.' })
   const userId = req.user!.userId
   if (active.has(userId)) return res.status(429).json({ error: 'A question is already running. Please wait for it to finish.' })
   active.add(userId)

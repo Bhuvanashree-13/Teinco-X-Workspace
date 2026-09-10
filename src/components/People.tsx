@@ -3,7 +3,6 @@ import {
   BadgeIndianRupee,
   BriefcaseBusiness,
   CalendarCheck2,
-  Check,
   ClipboardCheck,
   Clock3,
   Eye,
@@ -213,8 +212,8 @@ const attendanceDefaults = {
 
 const lifecycleDefaults = {
   employeeId: '',
-  taskType: 'onboarding',
-  ownerTeam: 'HR',
+  taskType: 'general',
+  ownerTeam: 'Operations',
   title: '',
   dueDate: today,
   checklist: '',
@@ -239,7 +238,7 @@ const tabs = [
   { id: 'directory', label: 'Directory', icon: Users },
   { id: 'leave', label: 'Leave', icon: CalendarCheck2 },
   { id: 'attendance', label: 'Attendance', icon: Clock3 },
-  { id: 'lifecycle', label: 'Lifecycle', icon: ListChecks },
+  { id: 'lifecycle', label: 'Taskboard', icon: ListChecks },
   { id: 'payroll', label: 'Payroll', icon: BadgeIndianRupee },
   { id: 'users', label: 'Users', icon: KeyRound },
   { id: 'admins', label: 'Admins', icon: ShieldCheck },
@@ -448,10 +447,10 @@ export default function People() {
     try {
       await apiPost('/employees/lifecycle', lifecycleForm)
       setLifecycleForm(lifecycleDefaults)
-      setMessage('Lifecycle task added.')
+      setMessage('Task added.')
       await refreshPeople()
     } catch (error: any) {
-      setMessage(error.message || 'Could not add lifecycle task.')
+      setMessage(error.message || 'Could not add task.')
     } finally {
       setSaving('')
     }
@@ -462,10 +461,10 @@ export default function People() {
     setMessage('')
     try {
       await apiPut(`/employees/lifecycle/${taskId}`, { status })
-      setMessage('Lifecycle task updated.')
+      setMessage('Task updated.')
       await refreshPeople()
     } catch (error: any) {
-      setMessage(error.message || 'Could not update lifecycle task.')
+      setMessage(error.message || 'Could not update task.')
     } finally {
       setSaving('')
     }
@@ -565,7 +564,7 @@ export default function People() {
           <p className="text-sm font-semibold uppercase tracking-[0.12em] text-[#64748B]">Teinco-X People</p>
           <h2 className="mt-1 text-[32px] font-semibold leading-tight text-[#1E3A8A] dark:text-white">People Operations</h2>
           <p className="mt-1 max-w-3xl text-sm text-slate-500">
-            Unified HR records, leave approvals, attendance evidence, lifecycle tasks, and payroll preparation.
+            Unified HR records, leave approvals, attendance evidence, tasks, and payroll preparation.
           </p>
           {!isAdmin && (
             <p className="mt-2 inline-flex rounded-lg border border-[#EFF6FF] bg-[#EFF6FF] px-3 py-1.5 text-xs font-medium text-[#1E3A8A]">
@@ -838,7 +837,7 @@ export default function People() {
       {activeTab === 'lifecycle' && (
         <section className="grid gap-4 xl:grid-cols-[1fr_380px]">
           <div className="rounded-lg border border-slate-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800">
-            <div className="border-b border-slate-200 p-4 dark:border-gray-700"><h3 className="font-semibold text-[#1E3A8A] dark:text-white">Onboarding & Offboarding Checklist</h3></div>
+            <div className="border-b border-slate-200 p-4 dark:border-gray-700"><h3 className="font-semibold text-[#1E3A8A] dark:text-white">Taskboard</h3></div>
             <div className="divide-y divide-slate-100 dark:divide-gray-700">
               {lifecycleList.map(task => (
                 <div key={task.id} className="flex flex-col gap-3 p-4 md:flex-row md:items-center md:justify-between">
@@ -848,20 +847,20 @@ export default function People() {
                   </div>
                   <div className="flex items-center gap-2">
                     <StatusBadge value={task.status} />
-                    {task.status !== 'complete' && <button onClick={() => updateLifecycleStatus(task.id, 'complete')} disabled={saving === `task-${task.id}`} className="flex items-center gap-1 rounded-lg border border-emerald-200 px-3 py-1.5 text-sm font-medium text-emerald-700"><Check className="h-3.5 w-3.5" /> Done</button>}
+                    <select aria-label={`Status for ${task.title}`} value={task.status} onChange={event => updateLifecycleStatus(task.id, event.target.value)} disabled={saving === `task-${task.id}`} className="rounded-lg border p-2 text-sm dark:border-gray-700 dark:bg-gray-900 dark:text-white"><option value="open">Open</option><option value="in_progress">In progress</option><option value="blocked">Blocked</option><option value="complete">Complete</option></select>
                   </div>
                 </div>
               ))}
-              {lifecycleList.length === 0 && <p className="p-8 text-center text-sm text-slate-500">No lifecycle tasks yet.</p>}
+              {lifecycleList.length === 0 && <p className="p-8 text-center text-sm text-slate-500">No tasks yet.</p>}
             </div>
           </div>
 
           <form onSubmit={submitLifecycle} className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800">
-            <h3 className="font-semibold text-[#1E3A8A] dark:text-white">Create Checklist Item</h3>
+            <h3 className="font-semibold text-[#1E3A8A] dark:text-white">Create Task</h3>
             <div className="mt-4 space-y-3">
               <select value={lifecycleForm.employeeId} onChange={event => setLifecycleForm({ ...lifecycleForm, employeeId: event.target.value })} className="w-full rounded-lg border p-2.5 text-sm dark:border-gray-700 dark:bg-gray-900 dark:text-white">{renderEmployeeOptions()}</select>
-              <select value={lifecycleForm.taskType} onChange={event => setLifecycleForm({ ...lifecycleForm, taskType: event.target.value })} className="w-full rounded-lg border p-2.5 text-sm dark:border-gray-700 dark:bg-gray-900 dark:text-white"><option value="onboarding">Onboarding</option><option value="offboarding">Offboarding</option></select>
-              <select value={lifecycleForm.ownerTeam} onChange={event => setLifecycleForm({ ...lifecycleForm, ownerTeam: event.target.value })} className="w-full rounded-lg border p-2.5 text-sm dark:border-gray-700 dark:bg-gray-900 dark:text-white"><option>HR</option><option>IT</option><option>Finance</option><option>Manager</option></select>
+              <select value={lifecycleForm.taskType} onChange={event => setLifecycleForm({ ...lifecycleForm, taskType: event.target.value })} className="w-full rounded-lg border p-2.5 text-sm dark:border-gray-700 dark:bg-gray-900 dark:text-white"><option value="general">General</option><option value="onboarding">Onboarding</option><option value="offboarding">Offboarding</option></select>
+              <select value={lifecycleForm.ownerTeam} onChange={event => setLifecycleForm({ ...lifecycleForm, ownerTeam: event.target.value })} className="w-full rounded-lg border p-2.5 text-sm dark:border-gray-700 dark:bg-gray-900 dark:text-white"><option>Operations</option><option>HR</option><option>IT</option><option>Finance</option><option>Manager</option></select>
               <input required value={lifecycleForm.title} onChange={event => setLifecycleForm({ ...lifecycleForm, title: event.target.value })} placeholder="Task title" className="w-full rounded-lg border p-2.5 text-sm dark:border-gray-700 dark:bg-gray-900 dark:text-white" />
               <input type="date" value={lifecycleForm.dueDate} onChange={event => setLifecycleForm({ ...lifecycleForm, dueDate: event.target.value })} className="w-full rounded-lg border p-2.5 text-sm dark:border-gray-700 dark:bg-gray-900 dark:text-white" />
               <textarea value={lifecycleForm.checklist} onChange={event => setLifecycleForm({ ...lifecycleForm, checklist: event.target.value })} placeholder="Checklist notes" className="h-20 w-full rounded-lg border p-2.5 text-sm dark:border-gray-700 dark:bg-gray-900 dark:text-white" />

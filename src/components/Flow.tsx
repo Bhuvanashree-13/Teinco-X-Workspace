@@ -132,7 +132,7 @@ const insightDefaults = {
 const tabs = [
   { id: 'command', label: 'Overview', icon: Gauge },
   { id: 'intelligence', label: 'Checks', icon: ShieldCheck },
-  { id: 'ask', label: 'Ask AI', icon: Bot },
+  { id: 'ask', label: 'Vyom', icon: Bot },
   { id: 'automation', label: 'Automation', icon: Bot },
   { id: 'forecast', label: 'Forecast', icon: TrendingUp },
   { id: 'insights', label: 'Insights', icon: BrainCircuit },

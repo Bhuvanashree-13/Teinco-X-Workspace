@@ -29,7 +29,7 @@ export function DetailScreen({ route, navigation }: NativeStackScreenProps<RootS
     finally { setBusy(false) }
   }
   const status = (value: string) => {
-    const endpoint = `${module.endpoint}/${row.id}${module.id === 'lifecycle' ? '' : '/status'}`
+    const endpoint = `${module.endpoint}/${row.id}${module.id === 'taskboard' ? '' : '/status'}`
     const data = module.id === 'leave' ? { status: value, approverName: user?.name || user?.email, blackoutChecked: Boolean(row.blackoutChecked) } : { status: value }
     Alert.alert(`${human(value)}?`, 'This updates the shared workspace record.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Confirm', onPress: () => void mutate(endpoint, data) }])
   }
@@ -59,7 +59,7 @@ export function DetailScreen({ route, navigation }: NativeStackScreenProps<RootS
     {module.id === 'payslips' && <><Panel><NativeField field={{ key: 'paymentReference', label: 'UTR / payment reference' }} value={reference} disabled={busy} onChange={setReference} /><Button label="Save reference" busy={busy} disabled={reference.length > 60} onPress={() => void mutate(`/employees/payslips/${row.id}/payment-reference`, { paymentReference: reference.trim() })} /><Text style={s.caption}>Maximum 60 characters.</Text></Panel><Button secondary icon="share-outline" label="Share payslip summary" onPress={() => void Share.share({ message: `${row.slipId}\n${row.employee?.name}\n${shortDate(row.periodStart)} – ${shortDate(row.periodEnd)}\nEarnings: ${currency(row.totalEarnings)}\nDeductions: ${currency(row.totalDeductions)}\nNet pay: ${currency(row.netPay)}\nPayment reference: ${row.paymentUtr || 'Not entered'}` }).catch(() => setError('Could not open sharing.'))} /></>}
     {module.id === 'leave' && role === 'admin' && row.status === 'pending' && <><Button label="Approve leave" busy={busy} onPress={() => status('approved')} /><Button secondary label="Reject leave" disabled={busy} onPress={() => status('rejected')} /></>}
     {module.id === 'milestones' && row.status !== 'complete' && <Button label="Mark complete" busy={busy} onPress={() => status('complete')} />}
-    {module.id === 'lifecycle' && row.status !== 'complete' && role === 'admin' && <Button label="Complete task" busy={busy} onPress={() => status('complete')} />}
+    {module.id === 'taskboard' && role === 'admin' && <Panel>{['open', 'in_progress', 'blocked', 'complete'].filter(value => value !== row.status).map(value => <Button key={value} secondary label={`Move to ${human(value)}`} busy={busy} onPress={() => status(value)} />)}</Panel>}
     {module.id === 'automation' && <Button busy={busy} label={row.status === 'active' ? 'Pause rule' : 'Activate rule'} onPress={() => status(row.status === 'active' ? 'paused' : 'active')} />}
     {module.id === 'insights' && row.id && row.status !== 'resolved' && <Button label="Resolve insight" busy={busy} onPress={() => status('resolved')} />}
     {module.deleteLabel && role === 'admin' && !row.payrollBatchId && <Button secondary disabled={busy} label={module.deleteLabel} onPress={() => Alert.alert(`${module.deleteLabel}?`, 'This changes the record in your shared workspace.', [{ text: 'Keep record', style: 'cancel' }, { text: module.deleteLabel, style: 'destructive', onPress: () => void mutate(`${module.endpoint}/${row.id}`, {}, 'DELETE') }])} />}

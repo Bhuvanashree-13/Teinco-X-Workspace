@@ -48,7 +48,7 @@ Use `npm run mobile:android` to compile and install a development build on an em
 
 Version 2.0.0 replaces the embedded website with native React Native screens, native stack navigation, and Home / Finance / People / Schedule / More tabs. Finance is the primary workflow: searchable paginated expenses with category/vendor/period filters, deposit capture and edits, vendor management, subscription management, native spending breakdowns, and transaction summary sharing. Forms use native date/time pickers, searchable lookup sheets, validation, and unsaved-change protection.
 
-People screens include a directory, attendance capture, leave requests and approval, leave balances, payslip details and payment references, payroll batch creation, and HR tasks. Schedule includes a day agenda, event creation, and milestones. Native Flow screens expose evidence checks, sourced Ask AI, automation rules, insights, and forecast scenarios. Employees only see permitted modules; administrative mutations are hidden from employee accounts. Ask AI requires a model configured on the hosted API server.
+People screens include a directory, attendance capture, leave requests and approval, leave balances, payslip details and payment references, payroll batch creation, and Taskboard for general tasks, ownership, due dates, and progress tracking. Schedule includes a day agenda, event creation, and milestones. Native Flow screens expose evidence checks, sourced Vyom answers, automation rules, insights, and forecast scenarios. Employees only see permitted modules; administrative mutations are hidden from employee accounts. Vyom requires a model configured on the hosted API server.
 
 All screens use the existing API directly. There is no WebView dependency or embedded HTML. Android retains a small storage-cleanup module to remove sessions left by version 1.1.0 during upgrade and sign-out. This release is online-first: offline sync, camera receipt uploads, push notifications, and PDF/Excel file import/export are not implemented. Native sharing sends an explicit transaction or payslip text summary through Android's share sheet.
 
@@ -418,13 +418,13 @@ Validation: `npm run test:schema`, `npm run test:auth`, and `npm run build`. To 
 Reference: [Google server-side ID token verification](https://developers.google.com/identity/gsi/web/guides/verify-google-id-token).
 
 
-### Ask AI model connection
+### Vyom model connection
 
 Local development reads `.env` when running `npm run dev`. Set `ASK_AI_OLLAMA_URL` to your Ollama base URL (for example `http://127.0.0.1:11434`) and `ASK_AI_MODEL` to an installed model from `ollama list`. Optionally set `ASK_AI_API_KEY` for an authenticated Ollama gateway. Restart the app server after changing these values.
 
 For a hosted deployment, set these variables on the application service. The endpoint must be reachable from that server; localhost refers to the hosted server, not your computer. Never put gateway credentials in `VITE_` variables.
 
-Open Flow → Ask AI → Test connection to verify model output using synthetic facts without reading financial records. Requests allow up to two minutes for local CPU inference. Ask AI returns only validated, sourced workspace facts; the model cannot modify records. Settings includes connection setup guidance.
+Open Flow → Vyom → Test connection to verify model output using synthetic facts without reading financial records. Requests allow up to two minutes for local CPU inference. Vyom returns only validated, sourced workspace facts; the model cannot modify records. Settings includes connection setup guidance.
 
 ### Android 2.0.1 Google sign-in
 

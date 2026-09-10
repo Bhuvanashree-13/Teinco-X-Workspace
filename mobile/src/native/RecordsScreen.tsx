@@ -18,6 +18,7 @@ export function RecordsScreen({ route, navigation }: NativeStackScreenProps<Root
   if (module.id === 'expenses') { params.set('page', String(page)); params.set('limit', '25'); if (debounced) params.set('search', debounced) }
   if (module.id === 'expenses' && category) params.set('categoryId', category)
   if (module.id === 'expenses' && vendor) params.set('vendorId', vendor)
+  if (module.id === 'taskboard') params.set('status', period)
   if (module.id === 'subscriptions') params.set('status', statusFilter)
   if (module.id === 'attendance') params.set('date', workDate)
   if (module.id === 'events' && !route.params.query) { params.set('startDate', dateKey()); params.set('endDate', dateKey(new Date(Date.now() + 90 * 86400000))) }
@@ -37,6 +38,7 @@ export function RecordsScreen({ route, navigation }: NativeStackScreenProps<Root
         <Search value={search} onChangeText={value => { setSearch(value); setPage(1) }} placeholder={`Search ${module.title.toLowerCase()}`} />
         {module.id === 'expenses' && <Button secondary icon="options-outline" label={showFilters ? 'Hide filters' : `Filters${category || vendor ? ' applied' : ''}`} onPress={() => setShowFilters(value => !value)} />}
         {module.id === 'expenses' && showFilters && <><NativeField field={{ key: 'category', label: 'Category', type: 'select', lookup: '/categories' }} value={category} onChange={value => { setCategory(value); setPage(1) }} /><NativeField field={{ key: 'vendor', label: 'Vendor', type: 'select', lookup: '/vendors' }} value={vendor} onChange={value => { setVendor(value); setPage(1) }} /></>}
+        {module.id === 'taskboard' && <Chips value={period} onChange={setPeriod} items={[{ id: 'all', label: 'All' }, { id: 'open', label: 'Open' }, { id: 'in_progress', label: 'In progress' }, { id: 'blocked', label: 'Blocked' }, { id: 'complete', label: 'Complete' }]} />}
         {module.id === 'subscriptions' && <Chips value={statusFilter} onChange={setStatusFilter} items={[{ id: 'active', label: 'Active' }, { id: 'cancelled', label: 'Cancelled' }, { id: 'all', label: 'All' }]} />}
         {['expenses', 'deposits'].includes(module.id) && !route.params.query && <Chips value={period} onChange={value => { setPeriod(value); setPage(1) }} items={[{ id: 'all', label: 'All time' }, { id: 'month', label: 'This month' }, { id: 'year', label: 'This year' }]} />}
         {route.params.query && <Text style={s.caption}>Showing the records linked from your workspace evidence.</Text>}

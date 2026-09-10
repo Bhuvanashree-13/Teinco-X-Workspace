@@ -48,7 +48,7 @@ function Shell() {
     <Stack.Screen name="Edit" component={EditScreen} options={({ route }) => ({ title: `${route.params.row ? 'Edit' : 'New'} ${moduleById(route.params.module).singular.toLowerCase()}`, presentation: 'modal' })} />
     <Stack.Screen name="Analytics" component={AnalyticsScreen} options={{ title: 'Analytics' }} />
     <Stack.Screen name="Flow" component={FlowScreen} options={{ title: 'Flow' }} />
-    <Stack.Screen name="AskAI" component={AskAIScreen} options={{ title: 'Ask AI' }} />
+    <Stack.Screen name="AskAI" component={AskAIScreen} options={{ title: 'Vyom' }} />
     <Stack.Screen name="Settings" component={SettingsScreen} options={{ title: 'Settings' }} />
     <Stack.Screen name="Account" component={AccountScreen} options={{ title: 'Account' }} />
   </Stack.Navigator></NavigationContainer>

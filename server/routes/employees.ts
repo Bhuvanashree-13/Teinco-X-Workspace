@@ -516,8 +516,8 @@ router.post('/lifecycle', requireAdmin, async (req, res) => {
       data: {
         taskId: `HR-${year}-${String(count + 1).padStart(6, '0')}`,
         employeeId: data.employeeId ? Number(data.employeeId) : null,
-        taskType: data.taskType || 'onboarding',
-        ownerTeam: data.ownerTeam || 'HR',
+        taskType: data.taskType || 'general',
+        ownerTeam: data.ownerTeam || 'Operations',
         title: data.title,
         dueDate: data.dueDate ? new Date(data.dueDate) : null,
         checklist: data.checklist || null,
@@ -534,6 +534,10 @@ router.post('/lifecycle', requireAdmin, async (req, res) => {
 router.put('/lifecycle/:id', requireAdmin, async (req, res) => {
   try {
     const status = req.body.status
+    if (!['open', 'in_progress', 'blocked', 'complete'].includes(status)) {
+      res.status(400).json({ error: 'Invalid task status' })
+      return
+    }
     const task = await prisma.lifecycleTask.update({
       where: { id: Number(req.params.id) },
       data: {

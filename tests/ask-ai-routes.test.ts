@@ -11,7 +11,7 @@ const { default: flow } = await import('../server/routes/flow.js')
 // Prisma may load the local .env during import. Keep disabled-config tests isolated.
 delete process.env.ASK_AI_OLLAMA_URL
 delete process.env.ASK_AI_MODEL
-test('Ask AI blocks employees before retrieval and reconciles evidence with database aggregates', async () => {
+test('Vyom blocks employees before retrieval and reconciles evidence with database aggregates', async () => {
   const restorations: (() => void)[] = []
   function replace(model: any, method: string, fn: any) { const original = model[method]; restorations.push(() => { model[method] = original }); model[method] = fn }
   let role = 'employee'
