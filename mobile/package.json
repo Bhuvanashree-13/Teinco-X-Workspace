@@ -1,6 +1,6 @@
 {
   "name": "teinco-x-finance-mobile",
-  "version": "2.0.2",
+  "version": "2.0.3",
   "main": "index.js",
   "dependencies": {
     "@react-native-community/datetimepicker": "^9.2.1",

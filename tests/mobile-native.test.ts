@@ -4,8 +4,15 @@ import { readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { allowedModule, canWrite, dateKey, formPayload, initialValues, moduleById, modules, sourceRoute, type Row } from '../mobile/src/native/domain.js'
 import { request } from '../mobile/src/api.js'
+import { isNewerVersion } from '../mobile/src/update-version.js'
 const valuesFor = (id: string, extra: Row) => ({ ...initialValues(moduleById(id).fields), ...extra })
 const expense = { description: 'Cloud service', baseAmount: '123.45', categoryId: '5', gstRate: '18', originalCurrency: 'INR', expenseDate: '2026-09-08', invoiceNumber: 'INV-07' }
+test('Android update comparison accepts newer semantic versions only', () => {
+  assert.equal(isNewerVersion('2.0.3', '2.0.2'), true)
+  assert.equal(isNewerVersion('v2.1.0', '2.0.9'), true)
+  assert.equal(isNewerVersion('2.0.3', '2.0.3'), false)
+  assert.equal(isNewerVersion('2.0.2', '2.0.3'), false)
+})
 test('employees cannot open finance or intelligence modules or edit shared subscriptions', () => {
   for (const module of modules.filter(item => item.admin)) assert.equal(allowedModule(module.id, 'employee'), false)
   for (const id of ['employees', 'leave', 'attendance', 'balances', 'payslips', 'events', 'milestones', 'subscriptions']) assert.equal(allowedModule(id, 'employee'), true)

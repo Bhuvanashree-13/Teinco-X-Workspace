@@ -17,6 +17,7 @@ import { SettingsScreen } from './src/native/SettingsScreen'
 import { Icon } from './src/native/Ui'
 import { moduleById } from './src/native/domain'
 import type { RootStack } from './src/native/navigation'
+import { AppUpdatePrompt } from './src/updates'
 const Tabs = createBottomTabNavigator()
 const Stack = createNativeStackNavigator<RootStack>()
 const theme = { ...DefaultTheme, colors: { ...DefaultTheme.colors, background: colors.background, primary: colors.primary, card: '#fff', text: colors.ink, border: colors.border } }
@@ -53,4 +54,4 @@ function Shell() {
     <Stack.Screen name="Account" component={AccountScreen} options={{ title: 'Account' }} />
   </Stack.Navigator></NavigationContainer>
 }
-export default function App() { return <SafeAreaProvider><StatusBar barStyle="dark-content" backgroundColor={colors.background} /><AuthProvider><Shell /></AuthProvider></SafeAreaProvider> }
+export default function App() { return <SafeAreaProvider><StatusBar barStyle="dark-content" backgroundColor={colors.background} /><AuthProvider><Shell /><AppUpdatePrompt /></AuthProvider></SafeAreaProvider> }

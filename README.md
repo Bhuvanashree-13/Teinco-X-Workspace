@@ -58,6 +58,8 @@ Validate with `npm run mobile:check`, `npm run test:mobile`, and `npm run mobile
 
 The release APK runs independently after installation; no cloud build account, QR code, or Metro development server is required. Install JDK 17 and Android Studio with the Android SDK first, then set `JAVA_HOME` and `ANDROID_HOME`.
 
+Starting with Android 2.0.3, the app checks the Railway API at startup for a newer APK. Configure `ANDROID_LATEST_VERSION`, `ANDROID_LATEST_VERSION_CODE`, `ANDROID_APK_URL`, `ANDROID_UPDATE_NOTES`, and optionally `ANDROID_UPDATE_REQUIRED=true` on Railway. When a newer version is available, the app displays an update prompt that opens the published APK download.
+
 ```bash
 cd mobile
 npm install
