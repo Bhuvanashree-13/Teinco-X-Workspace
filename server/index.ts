@@ -224,12 +224,12 @@ app.get('/api/health', (req, res) => {
 })
 
 app.get('/api/mobile/android/update', (req, res) => {
-  const version = process.env.ANDROID_LATEST_VERSION || '2.0.7'
-  const versionCode = Number(process.env.ANDROID_LATEST_VERSION_CODE || 12)
+  const version = process.env.ANDROID_LATEST_VERSION || '2.0.8'
+  const versionCode = Number(process.env.ANDROID_LATEST_VERSION_CODE || 13)
   const downloadUrl = process.env.ANDROID_APK_URL || `https://github.com/Bhuvanashree-13/Teinco-X-Workspace/releases/download/v${version}/Teinco-X-${version}.apk`
   res.json({
     version,
-    versionCode: Number.isInteger(versionCode) && versionCode > 0 ? versionCode : 12,
+    versionCode: Number.isInteger(versionCode) && versionCode > 0 ? versionCode : 13,
     downloadUrl,
     required: process.env.ANDROID_UPDATE_REQUIRED === 'true',
     notes: process.env.ANDROID_UPDATE_NOTES || 'A newer Teinco-X version is available with the latest workspace improvements.',

@@ -71,6 +71,7 @@ export default function Dashboard() {
       change: null,
       isUp: false,
       subtitle: 'All deposits less all expenses'
+      ,accent: '#315CF3', tint: '#EEF2FF'
     },
     {
       title: 'Total Deposits',
@@ -79,6 +80,7 @@ export default function Dashboard() {
       change: null,
       isUp: false,
       subtitle: `${data.depositCount} received`
+      ,accent: '#12A06A', tint: '#EAFBF3'
     },
     {
       title: 'Month to Date',
@@ -87,6 +89,7 @@ export default function Dashboard() {
       change: momChange,
       isUp: isMomUp,
       subtitle: momChange === null ? 'No prior-month comparison' : 'vs full previous month'
+      ,accent: '#F79009', tint: '#FFF4E5'
     },
     {
       title: 'YTD Spend',
@@ -95,6 +98,7 @@ export default function Dashboard() {
       change: null,
       isUp: false,
       subtitle: `${data.totalExpenses} transactions`
+      ,accent: '#7A5AF8', tint: '#F2EFFF'
     },
     {
       title: 'Monthly Average',
@@ -103,6 +107,7 @@ export default function Dashboard() {
       change: null,
       isUp: false,
       subtitle: 'Average of months with expenses'
+      ,accent: '#06AED4', tint: '#E9F9FC'
     },
     {
       title: 'Monthly Recurring Expenses',
@@ -111,6 +116,7 @@ export default function Dashboard() {
       change: null,
       isUp: false,
       subtitle: 'Monthly-cycle ledger entries only'
+      ,accent: '#F04468', tint: '#FFF0F3'
     },
     {
       title: 'Software',
@@ -119,6 +125,7 @@ export default function Dashboard() {
       change: null,
       isUp: false,
       subtitle: 'YTD total'
+      ,accent: '#4169F7', tint: '#EEF2FF'
     },
     {
       title: 'Cloud/Infra',
@@ -127,6 +134,7 @@ export default function Dashboard() {
       change: null,
       isUp: false,
       subtitle: 'YTD total'
+      ,accent: '#00A6A6', tint: '#E7FAFA'
     },
     {
       title: 'People',
@@ -135,6 +143,7 @@ export default function Dashboard() {
       change: null,
       isUp: false,
       subtitle: 'YTD total'
+      ,accent: '#E56B2F', tint: '#FFF1EA'
     },
     {
       title: 'Hardware',
@@ -143,6 +152,7 @@ export default function Dashboard() {
       change: null,
       isUp: false,
       subtitle: 'Hardware category YTD'
+      ,accent: '#A855F7', tint: '#F7EDFF'
     },
   ]
 
@@ -158,7 +168,7 @@ export default function Dashboard() {
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
         {kpiCards.map((card, i) => (
-          <div key={i} className="brand-card p-4 transition-shadow hover:shadow-md dark:border-gray-700 dark:bg-gray-800">
+          <div key={i} className="brand-card group p-4 hover:-translate-y-0.5 hover:shadow-md dark:border-gray-700 dark:bg-gray-800" style={{ borderTop: `3px solid ${card.accent}` }}>
             <div className="flex items-start justify-between">
               <div className="flex-1 min-w-0">
                 <p className="brand-label">{card.title}</p>
@@ -173,8 +183,8 @@ export default function Dashboard() {
                   <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">{card.subtitle}</p>
                 )}
               </div>
-              <div className="p-2.5 bg-[#EFF6FF] dark:bg-gray-700/50 rounded-lg shrink-0 ml-3">
-                <card.icon className="w-5 h-5 text-[#1E3A8A] dark:text-gray-300" strokeWidth={1.5} />
+              <div className="p-2.5 dark:bg-gray-700/50 rounded-xl shrink-0 ml-3 transition-transform group-hover:scale-105" style={{ backgroundColor: card.tint }}>
+                <card.icon className="w-5 h-5 dark:text-gray-300" style={{ color: card.accent }} strokeWidth={1.8} />
               </div>
             </div>
           </div>
