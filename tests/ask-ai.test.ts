@@ -23,10 +23,11 @@ test('provider receives no tools and malformed responses fail closed', async () 
       const body = JSON.parse(String(options?.body))
       assert.equal(body.tools, undefined)
       assert.equal(body.stream, false)
+      assert.equal(body.messages[1].content.includes('Earlier question'), true)
       assert.equal(options?.redirect, 'error')
       return new Response(JSON.stringify({ message: { content: JSON.stringify({ status: 'answered', factIds: ['spend-total'] }) } }))
     }) as typeof fetch
-    assert.equal((await answerWithOllama('How much?', context, { url: 'https://example.com/api/chat', model: 'test' })).facts[0].amount, 100)
+    assert.equal((await answerWithOllama('How much?', context, { url: 'https://example.com/api/chat', model: 'test' }, [{ role: 'user', content: 'Earlier question' }])).facts[0].amount, 100)
     globalThis.fetch = (async () => new Response(JSON.stringify({ message: { content: '{}', tool_calls: [{ name: 'unexpected_tool' }] } }))) as typeof fetch
     await assert.rejects(answerWithOllama('How much?', context, { url: 'https://example.com/api/chat', model: 'test' }))
     globalThis.fetch = (async () => new Response('bad json')) as typeof fetch

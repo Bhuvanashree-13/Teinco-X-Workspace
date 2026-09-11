@@ -1,6 +1,6 @@
 import { Router } from 'express'
 import { z } from 'zod'
-import { startOfMonth, startOfYear, subMonths, endOfMonth } from 'date-fns'
+import { startOfMonth, startOfYear, subMonths, endOfMonth, startOfDay, endOfDay, addDays } from 'date-fns'
 import { prisma } from '../db.js'
 import { categoryBreakdownFor } from '../lib/dashboard-categories.js'
 import { vendorBreakdownFor } from '../lib/analytics-vendors.js'
@@ -8,7 +8,8 @@ import { answerWithOllama, ollamaConfiguration, type AskContext, type AskFact } 
 import type { AuthedRequest } from '../middleware/auth.js'
 const router = Router()
 const periodSchema = z.enum(['month', 'last_month', 'year'])
-const requestSchema = z.object({ question: z.string().trim().min(3).max(1000), period: periodSchema }).strict()
+const historySchema = z.array(z.object({ role: z.enum(['user', 'assistant']), content: z.string().trim().min(1).max(2000) }).strict()).max(12).default([])
+const requestSchema = z.object({ question: z.string().trim().min(3).max(1000), period: periodSchema, history: historySchema }).strict()
 const money = (amount: number) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 2 }).format(amount)
 
 export async function retrieveAskContext(period: z.infer<typeof periodSchema>): Promise<AskContext> {
@@ -26,6 +27,18 @@ export async function retrieveAskContext(period: z.infer<typeof periodSchema>): 
     db.vendor.findMany({ select: { id: true, name: true } }),
     db.expense.findMany({ where, orderBy: [{ baseCurrencyAmount: 'desc' }, { id: 'asc' }], take: 10, select: { expenseId: true, baseCurrencyAmount: true, expenseDate: true } }),
   ]))
+  const todayStart = startOfDay(now), todayEnd = endOfDay(now), upcomingEnd = addDays(now, 30)
+  const [activeEmployees, pendingLeave, attendanceToday, openTasks, blockedTasks, upcomingEvents, openMilestones, urgentInsights, activeSubscriptions] = await prisma.$transaction(async db => Promise.all([
+    db.employee.count({ where: { isArchived: false, status: { in: ['active', 'on_leave', 'contractor'] } } }),
+    db.leaveRequest.count({ where: { status: 'pending' } }),
+    db.attendanceLog.count({ where: { workDate: { gte: todayStart, lte: todayEnd } } }),
+    db.lifecycleTask.count({ where: { status: { in: ['open', 'in_progress', 'blocked'] } } }),
+    db.lifecycleTask.count({ where: { status: 'blocked' } }),
+    db.scheduleEvent.findMany({ where: { status: 'scheduled', startsAt: { gte: now, lte: upcomingEnd } }, orderBy: { startsAt: 'asc' }, take: 5, select: { eventId: true, title: true, startsAt: true, participantsFrom: true, participantsTo: true, purpose: true } }),
+    db.scheduleMilestone.count({ where: { status: 'open', dueAt: { gte: now, lte: upcomingEnd } } }),
+    db.executiveInsight.count({ where: { status: 'open', severity: 'urgent' } }),
+    db.subscription.count({ where: { isArchived: false, status: { in: ['active', 'trial'] } } }),
+  ]))
   const source = { label: 'Expense records in this period', href: `/expenses?${range}` }
   const spend = Number(total._sum.baseCurrencyAmount) || 0
   const received = Number(deposits._sum.baseCurrencyAmount) || 0
@@ -33,14 +46,27 @@ export async function retrieveAskContext(period: z.infer<typeof periodSchema>): 
     { id: 'spend-total', text: `Recorded spending is ${money(spend)} across ${total._count} active expenses in the selected period.`, amount: spend, count: total._count, source },
     { id: 'deposit-total', text: `Received deposits total ${money(received)} across ${deposits._count} deposits in the selected period.`, amount: received, count: deposits._count, source: { label: 'Received deposits in this period', href: `/deposits?${range}` } },
     { id: 'period-net', text: `Received deposits minus recorded expenses for this period is ${money(received - spend)}. This is a period movement, not a bank balance.`, amount: received - spend, source },
+    { id: 'people-active', text: `${activeEmployees} employees and contractors are currently active in People.`, count: activeEmployees, source: { label: 'People', href: '/people' } },
+    { id: 'leave-pending', text: `${pendingLeave} leave requests are waiting for admin review.`, count: pendingLeave, source: { label: 'Leave requests', href: '/people' } },
+    { id: 'attendance-today', text: `Attendance has been recorded for ${attendanceToday} people today out of ${activeEmployees} active people.`, count: attendanceToday, source: { label: 'Attendance', href: '/people' } },
+    { id: 'tasks-open', text: `${openTasks} Taskboard tasks are open, in progress, or blocked.`, count: openTasks, source: { label: 'Taskboard', href: '/people' } },
+    { id: 'tasks-blocked', text: `${blockedTasks} Taskboard tasks are currently blocked.`, count: blockedTasks, source: { label: 'Taskboard', href: '/people' } },
+    { id: 'milestones-upcoming', text: `${openMilestones} open milestones are due within the next 30 days.`, count: openMilestones, source: { label: 'Schedule milestones', href: '/schedule' } },
+    { id: 'insights-urgent', text: `${urgentInsights} urgent workspace insights are open.`, count: urgentInsights, source: { label: 'Flow insights', href: '/flow' } },
+    { id: 'subscriptions-active', text: `${activeSubscriptions} subscriptions are active or in trial.`, count: activeSubscriptions, source: { label: 'Subscriptions', href: '/subscriptions' } },
   ]
+  for (const [index, event] of upcomingEvents.entries()) {
+    const between = event.participantsFrom || event.participantsTo ? ` Between ${event.participantsFrom || 'unspecified'} and ${event.participantsTo || 'unspecified'}.` : ''
+    const purpose = event.purpose ? ` Purpose: ${event.purpose.slice(0, 180)}.` : ''
+    facts.push({ id: `event-${index}`, text: `Upcoming meeting: ${event.title.slice(0, 140)} on ${event.startsAt.toISOString()}.${between}${purpose}`, source: { label: event.eventId, href: '/schedule' } })
+  }
   const categoryRows = categoryBreakdownFor(categorySpend, categories)
   for (const [index, row] of categoryRows.slice(0, 20).entries()) facts.push({ id: `category-${index}`, text: `Category rank ${index + 1}: ${row.category.slice(0, 120)} — ${money(row.amount)}, including subcategories.`, amount: row.amount, source })
   const vendorRows = vendorBreakdownFor(vendorSpend, vendors)
   for (const [index, row] of vendorRows.filter(row => row.kind === 'vendor').slice(0, 20).entries()) facts.push({ id: `vendor-${index}`, text: `Vendor rank ${index + 1}: ${row.vendor.slice(0, 120)} — ${money(row.amount)} across ${row.transactions} expenses.`, amount: row.amount, count: row.transactions, source })
   for (const row of vendorRows.filter(row => row.kind !== 'vendor')) facts.push({ id: row.key, text: `${row.vendor}: ${money(row.amount)} across ${row.transactions} expenses; excluded from vendor rankings.`, amount: row.amount, count: row.transactions, source })
   for (const [index, row] of largest.entries()) facts.push({ id: `expense-${index}`, text: `Expense rank ${index + 1}: ${row.expenseId}, ${money(Number(row.baseCurrencyAmount))}, dated ${row.expenseDate.toISOString().slice(0, 10)}.`, amount: Number(row.baseCurrencyAmount), source: { label: row.expenseId, href: `/expenses?search=${encodeURIComponent(row.expenseId)}` } })
-  return { period, start: start.toISOString(), end: end.toISOString(), retrievedAt: now.toISOString(), facts, coverage: ['Totals cover all matching active expenses and received deposits. Dates follow the server timezone, as in dashboard analytics.', `Rankings include up to 20 of ${categoryRows.length} categories, 20 of ${vendorRows.filter(row => row.kind === 'vendor').length} vendors, and the 10 largest expenses.`, 'No invoice attachments, private employee details, subscriptions, causes, predictions, or external ERP data are included. Each question is independent.'] }
+  return { period, start: start.toISOString(), end: end.toISOString(), retrievedAt: now.toISOString(), facts, coverage: ['Finance facts use the selected reporting period. People and attendance facts reflect the current workspace; schedule facts cover the next 30 days.', `Rankings include up to 20 of ${categoryRows.length} categories, 20 of ${vendorRows.filter(row => row.kind === 'vendor').length} vendors, and the 10 largest expenses.`, 'Vyom can continue a conversation using the last 12 messages. It cannot change records or answer from data outside this workspace evidence.'] }
 }
 router.get('/config', (_req, res) => {
   const config = ollamaConfiguration()
@@ -77,9 +103,9 @@ router.post('/', async (req: AuthedRequest, res) => {
   active.add(userId)
   try {
     const context = await retrieveAskContext(parsed.data.period)
-    const answer = await answerWithOllama(parsed.data.question, context, config)
+    const answer = await answerWithOllama(parsed.data.question, context, config, parsed.data.history)
     res.set('Cache-Control', 'no-store')
-    res.json({ ...answer, period: context.period, start: context.start, end: context.end, retrievedAt: context.retrievedAt, coverage: context.coverage, message: answer.status === 'answered' ? 'These verified records answer your question for the selected period.' : 'The available facts do not support an answer. Try a question about recorded spending, deposits, categories, vendors, or the largest expenses in the selected period.' })
+    res.json({ ...answer, period: context.period, start: context.start, end: context.end, retrievedAt: context.retrievedAt, coverage: context.coverage, message: answer.status === 'answered' ? 'Here is what I found in the current workspace records.' : 'I cannot verify that from the information currently stored in this app. Ask about Finance, People, attendance, leave, Taskboard, Schedule, subscriptions, or Flow.' })
   } catch { res.status(502).json({ error: 'The model could not return a verified answer. Retry or view the available facts.' }) }
   finally { active.delete(userId) }
 })
