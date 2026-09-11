@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native'
+import { Alert, Linking, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native'
 import { useNavigation } from '@react-navigation/native'
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack'
 import { useAuth } from '../auth/AuthContext'
@@ -8,6 +8,7 @@ import { colors, currency, shortDate } from '../theme'
 import { modules, dateKey, type Row } from './domain'
 import { Button, Empty, Icon, LoadState, Panel, Section, Tag, s } from './Ui'
 import type { RootStack } from './navigation'
+import { checkForAndroidUpdate } from '../updates'
 const useNav = () => useNavigation<NativeStackNavigationProp<RootStack>>()
 function Tile({ label, icon, onPress, color = colors.accent }: { label: string; icon: string; onPress: () => void; color?: string }) { return <Pressable accessibilityRole="button" onPress={onPress} style={[h.tile, { backgroundColor: `${color}08`, borderTopColor: color, borderTopWidth: 3 }]}><View style={[h.tileIcon, { backgroundColor: `${color}18` }]}><Icon name={icon} color={color} size={25} /></View><Text style={h.tileText}>{label}</Text></Pressable> }
 export function HomeScreen() {
@@ -58,6 +59,7 @@ export function ScheduleScreen() {
 export function MoreScreen() {
   const nav = useNav(), { user } = useAuth(), admin = user?.role === 'admin'
   const links: { title: string; icon: string; onPress: () => void }[] = [
+    { title: 'Check for updates', icon: 'cloud-download-outline', onPress: () => void checkForAndroidUpdate().then(update => update ? Alert.alert(`Teinco-X ${update.version} is available`, update.notes || 'A newer version is ready.', [{ text: 'Later', style: 'cancel' }, { text: 'Download', onPress: () => void Linking.openURL(update.downloadUrl) }]) : Alert.alert('You are up to date', 'This is the latest Teinco-X version.')).catch(() => Alert.alert('Update check failed', 'Check your internet connection and try again.')) },
     { title: 'Subscriptions', icon: 'repeat-outline', onPress: () => nav.navigate('Records', { module: 'subscriptions' }) },
     ...(admin ? [{ title: 'Flow & intelligence', icon: 'sparkles-outline', onPress: () => nav.navigate('Flow') }, { title: 'Vyom', icon: 'chatbubble-ellipses-outline', onPress: () => nav.navigate('AskAI') }, { title: 'Settings', icon: 'settings-outline', onPress: () => nav.navigate('Settings') }] : []),
     { title: 'Account', icon: 'person-circle-outline', onPress: () => nav.navigate('Account') },

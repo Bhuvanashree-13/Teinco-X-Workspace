@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Linking, Modal, Pressable, StyleSheet, Text, View } from 'react-native'
+import { AppState, Linking, Modal, Pressable, StyleSheet, Text, View } from 'react-native'
 import { normalizeServerUrl } from './api'
 import { colors } from './theme'
 import { APP_VERSION, isNewerVersion } from './update-version'
@@ -13,16 +13,24 @@ export type AndroidUpdate = {
   notes?: string
 }
 
+export async function checkForAndroidUpdate(signal?: AbortSignal) {
+  const response = await fetch(`${updateServer}/api/mobile/android/update?check=${Date.now()}`, { headers: { Accept: 'application/json', 'Cache-Control': 'no-cache' }, signal })
+  if (!response.ok) throw new Error('Could not check for updates.')
+  const result = await response.json() as AndroidUpdate
+  return result?.downloadUrl && isNewerVersion(result.version, APP_VERSION) ? result : null
+}
+
 export function AppUpdatePrompt() {
   const [update, setUpdate] = useState<AndroidUpdate | null>(null)
   const [dismissed, setDismissed] = useState(false)
   useEffect(() => {
     const controller = new AbortController()
-    void fetch(`${updateServer}/api/mobile/android/update`, { headers: { Accept: 'application/json' }, signal: controller.signal })
-      .then(response => response.ok ? response.json() : null)
-      .then((result: AndroidUpdate | null) => { if (result?.downloadUrl && isNewerVersion(result.version, APP_VERSION)) setUpdate(result) })
-      .catch(() => undefined)
-    return () => controller.abort()
+    let retry: ReturnType<typeof setTimeout> | undefined
+    let attempts = 0
+    const check = () => { attempts += 1; void checkForAndroidUpdate(controller.signal).then(result => { if (result) { setUpdate(result); setDismissed(false) } }).catch(() => { if (attempts < 3) retry = setTimeout(check, attempts * 4000) }) }
+    check()
+    const subscription = AppState.addEventListener('change', state => { if (state === 'active') { attempts = 0; check() } })
+    return () => { controller.abort(); subscription.remove(); if (retry) clearTimeout(retry) }
   }, [])
   if (!update || dismissed) return null
   return <Modal transparent animationType="fade" visible onRequestClose={() => { if (!update.required) setDismissed(true) }}>
