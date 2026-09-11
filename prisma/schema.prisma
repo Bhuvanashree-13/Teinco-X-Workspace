@@ -338,6 +338,10 @@ model ScheduleEvent {
   timezone    String    @default("Asia/Kolkata")
   location    String?
   ownerName   String?
+  participantsFrom String?
+  participantsTo   String?
+  purpose          String?
+  outcome          String?
   employeeId  Int?
   employee    Employee? @relation(fields: [employeeId], references: [id], onDelete: SetNull)
   projectId   Int?

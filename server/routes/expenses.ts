@@ -100,12 +100,14 @@ router.post('/', async (req, res) => {
     const data = req.body
     const description = String(data.description || '').trim()
     const categoryId = Number(data.categoryId)
-    const baseAmount = Number(data.baseAmount) || 0
     const gstRate = Number(data.gstRate) || 0
     const originalCurrency = String(data.originalCurrency || 'INR').toUpperCase()
     const exchangeRate = originalCurrency === 'INR' ? 1 : Number(data.exchangeRate)
-    const gstAmount = Math.round(baseAmount * gstRate) / 100
-    const totalAmount = Math.round((baseAmount + gstAmount) * 100) / 100
+    const suppliedTotal = Number(data.totalAmount)
+    const legacyBase = Number(data.baseAmount) || 0
+    const totalAmount = Number.isFinite(suppliedTotal) && suppliedTotal > 0 ? Math.round(suppliedTotal * 100) / 100 : Math.round(legacyBase * (1 + gstRate / 100) * 100) / 100
+    const baseAmount = Math.round((totalAmount / (1 + gstRate / 100)) * 100) / 100
+    const gstAmount = Math.round((totalAmount - baseAmount) * 100) / 100
     const originalAmount = totalAmount
 
     if (!description) return res.status(400).json({ error: 'Expense description is required' })
@@ -198,12 +200,14 @@ router.put('/:id', async (req, res) => {
     const data = req.body
     const description = String(data.description || '').trim()
     const categoryId = Number(data.categoryId)
-    const baseAmount = Number(data.baseAmount) || 0
     const gstRate = Number(data.gstRate) || 0
     const originalCurrency = String(data.originalCurrency || 'INR').toUpperCase()
     const exchangeRate = originalCurrency === 'INR' ? 1 : Number(data.exchangeRate)
-    const gstAmount = Math.round(baseAmount * gstRate) / 100
-    const totalAmount = Math.round((baseAmount + gstAmount) * 100) / 100
+    const suppliedTotal = Number(data.totalAmount)
+    const legacyBase = Number(data.baseAmount) || 0
+    const totalAmount = Number.isFinite(suppliedTotal) && suppliedTotal > 0 ? Math.round(suppliedTotal * 100) / 100 : Math.round(legacyBase * (1 + gstRate / 100) * 100) / 100
+    const baseAmount = Math.round((totalAmount / (1 + gstRate / 100)) * 100) / 100
+    const gstAmount = Math.round((totalAmount - baseAmount) * 100) / 100
 
     if (!description) return res.status(400).json({ error: 'Expense description is required' })
     if (!Number.isFinite(categoryId) || categoryId <= 0) return res.status(400).json({ error: 'Expense category is required' })

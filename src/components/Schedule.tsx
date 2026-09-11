@@ -47,6 +47,10 @@ type ScheduleEvent = {
   timezone: string
   location?: string | null
   ownerName?: string | null
+  participantsFrom?: string | null
+  participantsTo?: string | null
+  purpose?: string | null
+  outcome?: string | null
   employee?: Employee | null
   project?: Project | null
 }
@@ -97,6 +101,10 @@ const eventDefaults = {
   endsAt: toLocalInput(oneHourLater),
   location: '',
   ownerName: '',
+  participantsFrom: '',
+  participantsTo: '',
+  purpose: '',
+  outcome: '',
   employeeId: '',
   projectId: '',
   description: '',
@@ -206,7 +214,7 @@ export default function Schedule() {
     const term = search.trim().toLowerCase()
     if (!term) return eventList
     return eventList.filter(event =>
-      [event.title, event.eventId, event.employee?.name, event.project?.name, event.ownerName, event.location]
+      [event.title, event.eventId, event.employee?.name, event.project?.name, event.ownerName, event.location, event.participantsFrom, event.participantsTo, event.purpose, event.outcome]
         .some(value => value?.toLowerCase().includes(term))
     )
   }, [eventList, search])
@@ -344,6 +352,7 @@ export default function Schedule() {
                         <p className="font-semibold text-[#1E3A8A] dark:text-white">{item.title}</p>
                         <p className="mt-1 text-sm text-slate-500">{formatDateTime(item.startsAt, item.timezone)} to {formatDateTime(item.endsAt, item.timezone)}</p>
                         <p className="mt-1 text-xs text-slate-500">{labelize(item.eventType)} - {labelize(item.module)}{item.employee ? ` - ${item.employee.name}` : ''}{item.project ? ` - ${item.project.name}` : ''}</p>
+                        {item.eventType === 'meeting' && <div className="mt-2 space-y-1 text-xs text-slate-600 dark:text-slate-300"><p><span className="font-semibold">Between:</span> {item.participantsFrom || 'Not specified'} and {item.participantsTo || 'Not specified'}</p><p><span className="font-semibold">Purpose:</span> {item.purpose || 'Not recorded'}</p><p><span className="font-semibold">Result:</span> {item.outcome || 'Pending'}</p></div>}
                       </div>
                       <div className="flex items-center gap-2 text-sm text-slate-500">{item.location && <MapPin className="h-4 w-4" />} {item.location || item.ownerName || 'Workspace event'}</div>
                     </div>
@@ -368,6 +377,7 @@ export default function Schedule() {
               </div>
               <select value={eventForm.employeeId} onChange={event => setEventForm({ ...eventForm, employeeId: event.target.value })} className="w-full rounded-lg border p-2.5 text-sm dark:border-gray-700 dark:bg-gray-900 dark:text-white">{employeeOptions}</select>
               <select value={eventForm.projectId} onChange={event => setEventForm({ ...eventForm, projectId: event.target.value })} className="w-full rounded-lg border p-2.5 text-sm dark:border-gray-700 dark:bg-gray-900 dark:text-white">{projectOptions}</select>
+              {eventForm.eventType === 'meeting' && <><div className="grid grid-cols-2 gap-3"><input required value={eventForm.participantsFrom} onChange={event => setEventForm({ ...eventForm, participantsFrom: event.target.value })} placeholder="Meeting from (person/team)" className="rounded-lg border p-2.5 text-sm dark:border-gray-700 dark:bg-gray-900 dark:text-white" /><input required value={eventForm.participantsTo} onChange={event => setEventForm({ ...eventForm, participantsTo: event.target.value })} placeholder="Meeting with (person/team)" className="rounded-lg border p-2.5 text-sm dark:border-gray-700 dark:bg-gray-900 dark:text-white" /></div><textarea required value={eventForm.purpose} onChange={event => setEventForm({ ...eventForm, purpose: event.target.value })} placeholder="Purpose of the meeting" className="h-20 w-full rounded-lg border p-2.5 text-sm dark:border-gray-700 dark:bg-gray-900 dark:text-white" /><textarea value={eventForm.outcome} onChange={event => setEventForm({ ...eventForm, outcome: event.target.value })} placeholder="Result or outcome (can be added later)" className="h-20 w-full rounded-lg border p-2.5 text-sm dark:border-gray-700 dark:bg-gray-900 dark:text-white" /></>}
               <input value={eventForm.location} onChange={event => setEventForm({ ...eventForm, location: event.target.value })} placeholder="Location or channel" className="w-full rounded-lg border p-2.5 text-sm dark:border-gray-700 dark:bg-gray-900 dark:text-white" />
               <button disabled={saving === 'event'} className="flex w-full items-center justify-center gap-2 rounded-lg bg-[#1E3A8A] px-4 py-2 text-sm font-medium text-white disabled:opacity-50"><Plus className="h-4 w-4" /> Add event</button>
             </div>

@@ -48,12 +48,13 @@ export function EditScreen({ route, navigation }: NativeStackScreenProps<RootSta
       else void performSave(data)
     } catch (err) { setError(err instanceof Error ? err.message : 'Check the form.') }
   }
-  const total = (Number(values.baseAmount) || 0) * (1 + (Number(values.gstRate) || 0) / 100)
+  const total = Number(values.totalAmount) || 0
+  const expenseBase = total / (1 + (Number(values.gstRate) || 0) / 100)
   return <KeyboardAvoidingView style={s.page} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={100}>
     <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={s.content}>
       <Text style={s.caption}>{original ? 'Update the details below.' : `Add a ${module.singular.toLowerCase()} to your workspace.`}</Text>
       {module.hint && <Text style={s.caption}>{module.hint}</Text>}
-      {(module.id === 'expenses' || module.id === 'deposits') && <Panel><Text style={s.caption}>{module.id === 'expenses' ? 'Total including GST' : 'Amount received'}</Text><Text style={s.title}>{currency(module.id === 'expenses' ? total : Number(values.originalAmount), values.originalCurrency)}</Text>{values.originalCurrency !== 'INR' && <Text style={s.caption}>INR value: {currency((module.id === 'expenses' ? total : Number(values.originalAmount)) * Number(values.exchangeRate))}</Text>}</Panel>}
+      {(module.id === 'expenses' || module.id === 'deposits') && <Panel><Text style={s.caption}>{module.id === 'expenses' ? 'Total including GST' : 'Amount received'}</Text><Text style={s.title}>{currency(module.id === 'expenses' ? total : Number(values.originalAmount), values.originalCurrency)}</Text>{module.id === 'expenses' && <Text style={s.caption}>Before GST: {currency(expenseBase, values.originalCurrency)} · GST: {currency(total - expenseBase, values.originalCurrency)}</Text>}{values.originalCurrency !== 'INR' && <Text style={s.caption}>INR value: {currency((module.id === 'expenses' ? total : Number(values.originalAmount)) * Number(values.exchangeRate))}</Text>}</Panel>}
       {module.fields.filter(field => (!field.admin || role === 'admin') && (!original || !field.createOnly) && (!['frequency', 'nextDueDate'].includes(field.key) || values.expenseType === 'recurring') && (field.key !== 'exchangeRate' || values.originalCurrency !== 'INR')).map(field => <NativeField key={field.key} field={field} value={values[field.key]} disabled={busy} existingLabel={original?.[field.key.replace(/Id$/, '')]?.name} onChange={value => { setValues(prev => ({ ...prev, [field.key]: value, ...(field.key === 'originalCurrency' ? { exchangeRate: value === 'INR' ? '1' : '' } : {}) })); setDirty(true); setError('') }} />)}
       {!!error && <Text accessibilityRole="alert" style={s.errorText}>{error}</Text>}
       <Button label={original ? 'Save changes' : `Save ${module.singular.toLowerCase()}`} busy={busy} icon="checkmark" onPress={save} />

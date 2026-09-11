@@ -489,6 +489,27 @@ router.post('/attendance', async (req: AuthedRequest, res) => {
   }
 })
 
+router.get('/notifications', requireAdmin, async (_req, res) => {
+  try {
+    const today = new Date()
+    const [pendingLeave, attendance, activeEmployees] = await Promise.all([
+      prisma.leaveRequest.findMany({ where: { status: 'pending' }, include: { employee: true }, orderBy: { createdAt: 'desc' }, take: 50 }),
+      prisma.attendanceLog.findMany({ where: { workDate: { gte: startOfDay(today), lte: endOfDay(today) } }, include: { employee: true } }),
+      prisma.employee.findMany({ where: { status: 'active' }, select: { id: true, name: true } }),
+    ])
+    const recorded = new Set(attendance.map(log => log.employeeId))
+    const notifications = [
+      ...pendingLeave.map(request => ({ id: `leave-${request.id}`, type: 'leave_request', title: `${request.employee.name} requested leave`, message: `${request.leaveType.replace(/_/g, ' ')} · ${toNumber(request.days)} days`, status: 'pending', occurredAt: request.createdAt, employeeName: request.employee.name })),
+      ...attendance.filter(log => log.status !== 'present').map(log => ({ id: `attendance-${log.id}`, type: 'attendance', title: `${log.employee.name}: ${log.status.replace(/_/g, ' ')}`, message: `${log.workMode.replace(/_/g, ' ')} attendance recorded today`, status: log.status, occurredAt: log.updatedAt, employeeName: log.employee.name })),
+      ...activeEmployees.filter(employee => !recorded.has(employee.id)).map(employee => ({ id: `missing-${employee.id}`, type: 'missing_attendance', title: `${employee.name} has not marked attendance`, message: 'No attendance entry for today', status: 'attention', occurredAt: startOfDay(today), employeeName: employee.name })),
+    ]
+    res.json(notifications)
+  } catch (error) {
+    console.error('Admin notifications error:', error)
+    res.status(500).json({ error: 'Failed to load admin notifications' })
+  }
+})
+
 router.get('/lifecycle', requireAdmin, async (req, res) => {
   try {
     const { status = 'all', taskType = 'all' } = req.query

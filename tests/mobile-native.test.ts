@@ -6,7 +6,7 @@ import { allowedModule, canWrite, dateKey, formPayload, initialValues, moduleByI
 import { request } from '../mobile/src/api.js'
 import { isNewerVersion } from '../mobile/src/update-version.js'
 const valuesFor = (id: string, extra: Row) => ({ ...initialValues(moduleById(id).fields), ...extra })
-const expense = { description: 'Cloud service', baseAmount: '123.45', categoryId: '5', gstRate: '18', originalCurrency: 'INR', expenseDate: '2026-09-08', invoiceNumber: 'INV-07' }
+const expense = { description: 'Cloud service', totalAmount: '123.45', categoryId: '5', gstRate: '18', originalCurrency: 'INR', expenseDate: '2026-09-08', invoiceNumber: 'INV-07' }
 test('Android update comparison accepts newer semantic versions only', () => {
   assert.equal(isNewerVersion('2.0.3', '2.0.2'), true)
   assert.equal(isNewerVersion('v2.1.0', '2.0.9'), true)
@@ -22,7 +22,7 @@ test('employees cannot open finance or intelligence modules or edit shared subsc
 test('expense form emits only editable API fields and preserves decimal values and invoice details', () => {
   const fields = moduleById('expenses').fields
   const payload = formPayload(fields, valuesFor('expenses', { ...expense, id: 'wrong', vendor: { name: 'Nested' }, status: 'deleted', exchangeRate: '999' }), 'admin')
-  assert.equal(payload.baseAmount, 123.45)
+  assert.equal(payload.totalAmount, 123.45)
   assert.equal(payload.gstRate, 18)
   assert.equal(payload.exchangeRate, 1)
   assert.equal(payload.invoiceNumber, 'INV-07')
@@ -33,7 +33,7 @@ test('expense form emits only editable API fields and preserves decimal values a
 })
 test('invalid amounts, GST, lookup IDs and exchange rates fail before any request', () => {
   const fields = moduleById('expenses').fields
-  for (const update of [{ baseAmount: '0' }, { baseAmount: '-1' }, { baseAmount: 'Infinity' }, { baseAmount: '' }, { gstRate: '101' }, { categoryId: '5.5' }, { categoryId: '' }, { originalCurrency: 'USD', exchangeRate: '0' }]) assert.throws(() => formPayload(fields, valuesFor('expenses', { ...expense, ...update }), 'admin'))
+  for (const update of [{ totalAmount: '0' }, { totalAmount: '-1' }, { totalAmount: 'Infinity' }, { totalAmount: '' }, { gstRate: '101' }, { categoryId: '5.5' }, { categoryId: '' }, { originalCurrency: 'USD', exchangeRate: '0' }]) assert.throws(() => formPayload(fields, valuesFor('expenses', { ...expense, ...update }), 'admin'))
 })
 test('foreign deposits retain currency and conversion rate and validate source', () => {
   const fields = moduleById('deposits').fields, input = valuesFor('deposits', { source: ' Customer ', originalAmount: '75.25', originalCurrency: 'USD', exchangeRate: '83.5' })

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import {
   BadgeIndianRupee,
+  Bell,
   BriefcaseBusiness,
   CalendarCheck2,
   ClipboardCheck,
@@ -114,6 +115,8 @@ type LifecycleTask = {
   status: string
   checklist?: string | null
 }
+
+type AdminNotification = { id: string; type: string; title: string; message: string; status: string; occurredAt: string; employeeName: string }
 
 type PayrollBatch = {
   id: number
@@ -238,6 +241,7 @@ const tabs = [
   { id: 'directory', label: 'Directory', icon: Users },
   { id: 'leave', label: 'Leave', icon: CalendarCheck2 },
   { id: 'attendance', label: 'Attendance', icon: Clock3 },
+  { id: 'notifications', label: 'Notifications', icon: Bell },
   { id: 'lifecycle', label: 'Taskboard', icon: ListChecks },
   { id: 'payroll', label: 'Payroll', icon: BadgeIndianRupee },
   { id: 'users', label: 'Users', icon: KeyRound },
@@ -311,6 +315,7 @@ export default function People() {
   const { data: leaveRequests, refetch: refetchLeave } = useApi<LeaveRequest[]>('/employees/leave')
   const { data: ptoBalances, refetch: refetchBalances } = useApi<PtoBalance[]>('/employees/leave/balances')
   const { data: attendanceLogs, refetch: refetchAttendance } = useApi<AttendanceLog[]>(`/employees/attendance?date=${attendanceDate}`)
+  const { data: adminNotifications, refetch: refetchNotifications } = useApi<AdminNotification[]>(isAdmin ? '/employees/notifications' : null)
   const { data: lifecycleTasks, refetch: refetchLifecycle } = useApi<LifecycleTask[]>(isAdmin ? '/employees/lifecycle' : null)
   const { data: payrollBatches, refetch: refetchPayroll } = useApi<PayrollBatch[]>(isAdmin ? '/employees/payroll-batches' : null)
   const { data: loginUsers, refetch: refetchUsers } = useApi<LoginUser[]>(isAdmin ? '/auth/users' : null)
@@ -320,6 +325,7 @@ export default function People() {
   const leaveList = leaveRequests || []
   const balances = ptoBalances || []
   const attendanceList = attendanceLogs || []
+  const notificationList = adminNotifications || []
   const lifecycleList = lifecycleTasks || []
   const payrollList = payrollBatches || []
   const userList = loginUsers || []
@@ -354,6 +360,7 @@ export default function People() {
       refetchLeave(),
       refetchBalances(),
       refetchAttendance(),
+      refetchNotifications(),
       refetchLifecycle(),
       refetchPayroll(),
       refetchUsers(),
@@ -831,6 +838,16 @@ export default function People() {
               {!canSubmitAttendance && <p className="text-xs text-red-600">This login is not linked to an employee profile yet. Ask an admin to add your email in People.</p>}
             </div>
           </form>
+        </section>
+      )}
+
+      {activeTab === 'notifications' && (
+        <section className="rounded-lg border border-slate-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800">
+          <div className="flex items-center justify-between border-b border-slate-200 p-4 dark:border-gray-700"><div><h3 className="font-semibold text-[#1E3A8A] dark:text-white">Leave and attendance notifications</h3><p className="mt-1 text-sm text-slate-500">Pending leave, attendance exceptions, and employees who have not marked attendance today.</p></div><span className="rounded-full bg-red-100 px-3 py-1 text-sm font-semibold text-red-700">{notificationList.length}</span></div>
+          <div className="divide-y divide-slate-100 dark:divide-gray-700">
+            {notificationList.map(notification => <div key={notification.id} className="flex items-start gap-3 p-4"><div className="mt-0.5 grid h-9 w-9 shrink-0 place-items-center rounded-full bg-amber-50 text-amber-700"><Bell className="h-4 w-4" /></div><div className="min-w-0 flex-1"><p className="font-semibold text-[#1E3A8A] dark:text-white">{notification.title}</p><p className="mt-1 text-sm text-slate-500">{notification.message}</p><p className="mt-1 text-xs text-slate-400">{formatDate(notification.occurredAt)} · {notification.status.replace(/_/g, ' ')}</p></div></div>)}
+            {notificationList.length === 0 && <p className="p-8 text-center text-sm text-slate-500">No leave or attendance notifications.</p>}
+          </div>
         </section>
       )}
 
