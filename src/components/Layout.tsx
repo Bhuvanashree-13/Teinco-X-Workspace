@@ -55,7 +55,7 @@ export default function Layout() {
   }, [location.pathname])
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[#F3F4F6] dark:bg-gray-900">
+    <div className="flex h-screen overflow-hidden bg-[#F7F8FC] dark:bg-gray-900">
       <Sidebar className="hidden lg:flex" />
       {mobileNavOpen && (
         <div className="fixed inset-0 z-50 lg:hidden" role="dialog" aria-modal="true" aria-label="Workspace navigation">
@@ -139,7 +139,7 @@ export default function Layout() {
             </div>
           </div>
         </header>
-        <main className="flex-1 overflow-auto p-4 sm:p-6 lg:p-8">
+        <main className="flex-1 overflow-auto p-4 sm:p-6 lg:p-8 xl:p-10">
           <Outlet />
         </main>
       </div>

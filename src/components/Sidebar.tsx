@@ -31,7 +31,7 @@ export default function Sidebar({ className = '', onNavigate }: SidebarProps) {
     : navItems.filter(item => ['/', '/subscriptions', '/people', '/payslips', '/schedule'].includes(item.to))
 
   return (
-    <aside className={`w-[272px] max-w-[86vw] bg-[#1E3A8A] text-white flex flex-col shrink-0 shadow-[1px_0_3px_rgba(17,24,39,0.12)] ${className}`}>
+    <aside className={`w-[272px] max-w-[86vw] bg-gradient-to-b from-[#315CF3] via-[#294FD9] to-[#182E85] text-white flex flex-col shrink-0 shadow-[8px_0_30px_rgba(30,58,138,0.15)] ${className}`}>
       <div className="px-5 py-5 border-b border-white/10">
         <div className="flex min-h-8 items-center min-w-[140px]">
           <img src="/teinco-logo.png" alt="Teinco.ai" className="h-10 w-auto rounded bg-white px-2 py-1 object-contain" />
@@ -54,7 +54,7 @@ export default function Sidebar({ className = '', onNavigate }: SidebarProps) {
             className={({ isActive }) =>
               `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
                 isActive
-                  ? 'bg-white/[0.12] text-white shadow-[inset_3px_0_0_#60A5FA]'
+                  ? 'bg-white/[0.16] text-white shadow-[inset_3px_0_0_#AFC0FF,0_8px_20px_rgba(20,38,110,0.15)]'
                   : 'text-white/80 hover:bg-white/[0.07] hover:text-white'
               }`
             }
