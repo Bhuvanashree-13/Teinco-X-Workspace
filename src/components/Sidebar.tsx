@@ -1,7 +1,7 @@
 import { NavLink } from 'react-router-dom'
 import { 
   LayoutDashboard, Receipt, Store, Calendar, CalendarDays,
-  BarChart3, Settings, Users, Network, FileText, Landmark
+  BarChart3, Settings, Users, Network, FileText, Landmark, FolderKanban
 } from 'lucide-react'
 import { useRole } from '../context/RoleContext'
 
@@ -17,6 +17,7 @@ const navItems = [
   { to: '/vendors', icon: Store, label: 'Vendors' },
   { to: '/subscriptions', icon: Calendar, label: 'Subscriptions' },
   { to: '/analytics', icon: BarChart3, label: 'Analytics' },
+  { to: '/projects', icon: FolderKanban, label: 'Projects & Taskboard' },
   { to: '/people', icon: Users, label: 'People' },
   { to: '/payslips', icon: FileText, label: 'Payslips' },
   { to: '/schedule', icon: CalendarDays, label: 'Schedule' },
@@ -28,7 +29,7 @@ export default function Sidebar({ className = '', onNavigate }: SidebarProps) {
   const { role, isAdmin } = useRole()
   const visibleNavItems = isAdmin
     ? navItems
-    : navItems.filter(item => ['/', '/subscriptions', '/people', '/payslips', '/schedule'].includes(item.to))
+    : navItems.filter(item => ['/', '/subscriptions', '/projects', '/people', '/payslips', '/schedule'].includes(item.to))
 
   return (
     <aside className={`w-[272px] max-w-[86vw] bg-gradient-to-b from-[#315CF3] via-[#294FD9] to-[#182E85] text-white flex flex-col shrink-0 shadow-[8px_0_30px_rgba(30,58,138,0.15)] ${className}`}>

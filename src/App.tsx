@@ -12,6 +12,7 @@ import Flow from './components/Flow'
 import Login from './components/Login'
 import Payslips from './components/Payslips'
 import Deposits from './components/Deposits'
+import ProjectManagement from './components/ProjectManagement'
 import { RoleProvider, useRole } from './context/RoleContext'
 import { ToastProvider } from './components/Toast'
 
@@ -40,6 +41,7 @@ function AppRoutes() {
         <Route path="vendors" element={<Vendors />} />
         <Route path="subscriptions" element={<Subscriptions />} />
         <Route path="analytics" element={<Analytics />} />
+        <Route path="projects" element={<ProjectManagement />} />
         <Route path="people" element={<People />} />
         <Route path="payslips" element={<Payslips />} />
         <Route path="schedule" element={<Schedule />} />

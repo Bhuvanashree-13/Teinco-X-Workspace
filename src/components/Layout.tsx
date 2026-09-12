@@ -19,12 +19,15 @@ export default function Layout() {
   const isPayslips = location.pathname.startsWith('/payslips')
   const isSchedule = location.pathname.startsWith('/schedule')
   const isFlow = location.pathname.startsWith('/flow')
+  const isProjects = location.pathname.startsWith('/projects')
   const workspace = isPeople
     ? { name: 'Teinco-X People', description: 'Human resource management' }
     : isPayslips
       ? { name: 'Teinco-X People', description: 'Employee payslips and payroll records' }
       : isSchedule
       ? { name: 'Teinco-X Schedule', description: 'Calendar and milestone coordination' }
+      : isProjects
+        ? { name: 'Teinco-X Projects', description: 'Project delivery and task management' }
       : isFlow
         ? { name: 'Teinco-X Flow', description: 'ERP and operational intelligence' }
         : { name: 'Teinco-X Ledger', description: 'Business finance workspace' }

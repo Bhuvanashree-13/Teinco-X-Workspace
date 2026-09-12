@@ -62,6 +62,8 @@ Starting with Android 2.0.3, the app checks the Railway API at startup for a new
 
 Vyom supports voice conversations for administrators. On Android, **Speak to Vyom** uses the device speech recognizer and reads verified answers through Android text-to-speech. On the web, the same controls use the browser speech-recognition and speech-synthesis services. Teinco-X sends the recognized text to its API; it does not upload or store a raw microphone recording. Microphone access is requested only when the administrator starts listening.
 
+Projects & Taskboard provides a shared delivery system with project keys, epics, stories, tasks, bugs, workflow columns, priorities, assignees, sprints, story points, due dates, labels, comments, and activity history. Analytics includes an Analyst View that separates recorded observations, implications, recommendations, confidence, and calculation methods; its thresholds are transparent internal decision rules rather than external market benchmarks.
+
 ```bash
 cd mobile
 npm install

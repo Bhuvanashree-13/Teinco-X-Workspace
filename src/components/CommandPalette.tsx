@@ -6,6 +6,7 @@ import {
   Calendar,
   CalendarDays,
   FileText,
+  FolderKanban,
   Landmark,
   LayoutDashboard,
   LogOut,
@@ -35,7 +36,8 @@ const navItems = [
   { to: '/deposits', icon: Landmark, label: 'Deposits', keywords: 'funds inflow balance' },
   { to: '/vendors', icon: Store, label: 'Vendors', keywords: 'suppliers directory' },
   { to: '/subscriptions', icon: Calendar, label: 'Subscriptions', keywords: 'recurring billing renewal' },
-  { to: '/analytics', icon: BarChart3, label: 'Analytics', keywords: 'charts insights reports' },
+  { to: '/analytics', icon: BarChart3, label: 'Analytics', keywords: 'charts insights reports analyst' },
+  { to: '/projects', icon: FolderKanban, label: 'Projects & Taskboard', keywords: 'jira board sprint issue backlog' },
   { to: '/people', icon: Users, label: 'People', keywords: 'employees hr team' },
   { to: '/payslips', icon: FileText, label: 'Payslips', keywords: 'payroll salary' },
   { to: '/schedule', icon: CalendarDays, label: 'Schedule', keywords: 'calendar milestones' },
@@ -43,7 +45,7 @@ const navItems = [
   { to: '/settings', icon: Settings, label: 'Settings', keywords: 'preferences configuration' },
 ]
 
-const employeeOnly = ['/', '/subscriptions', '/people', '/payslips', '/schedule']
+const employeeOnly = ['/', '/subscriptions', '/projects', '/people', '/payslips', '/schedule']
 
 export default function CommandPalette({ open, onClose }: CommandPaletteProps) {
   const navigate = useNavigate()

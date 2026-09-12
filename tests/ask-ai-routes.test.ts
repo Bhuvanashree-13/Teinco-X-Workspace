@@ -27,7 +27,7 @@ test('Vyom blocks employees before retrieval and reconciles evidence with databa
   replace(prisma.employee, 'count', async () => 8)
   replace(prisma.leaveRequest, 'count', async () => 2)
   replace(prisma.attendanceLog, 'count', async () => 6)
-  replace(prisma.lifecycleTask, 'count', async (query: any) => query.where.status === 'blocked' ? 1 : 4)
+  replace(prisma.workItem, 'count', async (query: any) => query.where.status === 'blocked' ? 1 : 4)
   replace(prisma.scheduleEvent, 'findMany', async () => [{ eventId: 'EVT-1', title: 'Weekly review', startsAt: new Date(), participantsFrom: 'Finance', participantsTo: 'Leadership', purpose: 'Review spending' }])
   replace(prisma.scheduleMilestone, 'count', async () => 3)
   replace(prisma.executiveInsight, 'count', async () => 1)
