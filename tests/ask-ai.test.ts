@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { selectVerifiedFacts, answerWithOllama, type AskContext } from '../server/lib/ask-ai.js'
+import { selectVerifiedFacts, modelContextFor, answerWithOllama, type AskContext } from '../server/lib/ask-ai.js'
 const context: AskContext = { period: 'month', start: '2026-09-01', end: '2026-09-07', retrievedAt: '2026-09-07', coverage: [], facts: [{ id: 'spend-total', text: 'Spending is INR 100.', amount: 100, source: { label: 'Records', href: '/expenses' } }] }
 test('answers contain original server facts, not model-authored amounts', () => {
   assert.deepEqual(selectVerifiedFacts({ status: 'answered', factIds: ['spend-total'] }, context).facts, context.facts)
@@ -15,6 +15,16 @@ test('unsupported questions return no supposed evidence', () => {
 })
 test('duplicate references are deduplicated', () => {
   assert.equal(selectVerifiedFacts({ status: 'answered', factIds: ['spend-total', 'spend-total'] }, context).facts.length, 1)
+})
+test('model context is limited to evidence relevant to the question', () => {
+  const facts = [
+    context.facts[0],
+    ...Array.from({ length: 20 }, (_, index) => ({ id: `vendor-${index}`, text: `Vendor ${index} spending.`, source: { label: 'Records', href: '/expenses' } })),
+    { id: 'leave-pending', text: 'Two leave requests are pending.', source: { label: 'People', href: '/people' } },
+  ]
+  const selected = modelContextFor('Are any leave requests pending?', { ...context, facts })
+  assert.deepEqual(selected.facts.map(fact => fact.id), ['leave-pending'])
+  assert.ok(selected.facts.length <= 18)
 })
 test('provider receives no tools and malformed responses fail closed', async () => {
   const original = globalThis.fetch
