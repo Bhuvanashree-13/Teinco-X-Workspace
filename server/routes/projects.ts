@@ -84,8 +84,31 @@ router.post('/', requireAdmin, async (req, res) => {
   try { const count = await prisma.project.count(); res.status(201).json(await prisma.project.create({ data: { ...parsed.data, code: parsed.data.code || `PRJ-${String(count + 1).padStart(3, '0')}` } })) } catch (error) { console.error('Project creation failed:', error); res.status(500).json({ error: 'Failed to create project' }) }
 })
 router.put('/:id', requireAdmin, async (req, res) => {
-  const parsed = projectSchema.partial().safeParse(req.body)
-  if (!parsed.success) return res.status(400).json({ error: 'Enter valid project details' })
-  try { res.json(await prisma.project.update({ where: { id: Number(req.params.id) }, data: parsed.data })) } catch { res.status(500).json({ error: 'Failed to update project' }) }
+  const id = Number(req.params.id), parsed = projectSchema.partial().safeParse(req.body)
+  if (!Number.isInteger(id) || id < 1 || !parsed.success) return res.status(400).json({ error: 'Enter valid project details' })
+  try { res.json(await prisma.project.update({ where: { id }, data: parsed.data })) } catch { res.status(404).json({ error: 'Project not found' }) }
+})
+router.delete('/:id', requireAdmin, async (req, res) => {
+  const id = Number(req.params.id)
+  if (!Number.isInteger(id) || id < 1) return res.status(400).json({ error: 'Invalid project' })
+  try {
+    await prisma.$transaction(async db => {
+      const project = await db.project.findUnique({ where: { id }, select: { id: true } })
+      if (!project) throw new Error('PROJECT_NOT_FOUND')
+      // Preserve finance and planning records while removing their project link.
+      await Promise.all([
+        db.expense.updateMany({ where: { projectId: id }, data: { projectId: null } }),
+        db.budget.updateMany({ where: { projectId: id }, data: { projectId: null } }),
+        db.scheduleEvent.updateMany({ where: { projectId: id }, data: { projectId: null } }),
+        db.scheduleMilestone.updateMany({ where: { projectId: id }, data: { projectId: null } }),
+      ])
+      await db.project.delete({ where: { id } })
+    })
+    res.json({ success: true })
+  } catch (error) {
+    if (error instanceof Error && error.message === 'PROJECT_NOT_FOUND') return res.status(404).json({ error: 'Project not found' })
+    console.error('Project deletion failed:', error)
+    res.status(500).json({ error: 'Failed to delete project' })
+  }
 })
 export default router
