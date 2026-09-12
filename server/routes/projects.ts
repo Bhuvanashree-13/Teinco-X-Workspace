@@ -81,7 +81,7 @@ router.get('/:id/spend', async (req, res) => {
 router.post('/', requireAdmin, async (req, res) => {
   const parsed = projectSchema.safeParse(req.body)
   if (!parsed.success) return res.status(400).json({ error: 'Enter valid project details' })
-  try { const count = await prisma.project.count(); res.status(201).json(await prisma.project.create({ data: { ...parsed.data, code: parsed.data.code || `PRJ-${String(count + 1).padStart(3, '0')}` } })) } catch { res.status(500).json({ error: 'Failed to create project' }) }
+  try { const count = await prisma.project.count(); res.status(201).json(await prisma.project.create({ data: { ...parsed.data, code: parsed.data.code || `PRJ-${String(count + 1).padStart(3, '0')}` } })) } catch (error) { console.error('Project creation failed:', error); res.status(500).json({ error: 'Failed to create project' }) }
 })
 router.put('/:id', requireAdmin, async (req, res) => {
   const parsed = projectSchema.partial().safeParse(req.body)

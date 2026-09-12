@@ -152,7 +152,7 @@ model Project {
   id             Int                 @id @default(autoincrement())
   code           String              @unique
   name           String
-  description    String?
+  description    String?              @db.Text
   status         String              @default("active") // active | paused | completed | archived
   startDate      DateTime?
   endDate        DateTime?
