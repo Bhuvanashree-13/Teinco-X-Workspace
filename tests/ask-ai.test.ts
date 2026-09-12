@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { selectVerifiedFacts, modelContextFor, answerWithOllama, type AskContext } from '../server/lib/ask-ai.js'
+import { selectVerifiedFacts, modelContextFor, directVerifiedAnswer, answerWithOllama, type AskContext } from '../server/lib/ask-ai.js'
 const context: AskContext = { period: 'month', start: '2026-09-01', end: '2026-09-07', retrievedAt: '2026-09-07', coverage: [], facts: [{ id: 'spend-total', text: 'Spending is INR 100.', amount: 100, source: { label: 'Records', href: '/expenses' } }] }
 test('answers contain original server facts, not model-authored amounts', () => {
   assert.deepEqual(selectVerifiedFacts({ status: 'answered', factIds: ['spend-total'] }, context).facts, context.facts)
@@ -25,6 +25,10 @@ test('model context is limited to evidence relevant to the question', () => {
   const selected = modelContextFor('Are any leave requests pending?', { ...context, facts })
   assert.deepEqual(selected.facts.map(fact => fact.id), ['leave-pending'])
   assert.ok(selected.facts.length <= 18)
+})
+test('clear workspace questions resolve directly to verified facts', () => {
+  assert.deepEqual(directVerifiedAnswer('How much have we spent?', context)?.facts, context.facts)
+  assert.equal(directVerifiedAnswer('Why did sales fall?', context), null)
 })
 test('provider receives no tools and malformed responses fail closed', async () => {
   const original = globalThis.fetch

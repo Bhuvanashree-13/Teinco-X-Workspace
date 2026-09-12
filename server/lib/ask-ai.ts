@@ -45,6 +45,23 @@ export function modelContextFor(question: string, context: AskContext): AskConte
   }
   return { ...context, facts: selected.slice(0, 18), coverage: context.coverage.slice(0, 1) }
 }
+export function directVerifiedAnswer(question: string, context: AskContext) {
+  const value = question.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
+  const requested: string[] = []
+  const has = (pattern: RegExp) => pattern.test(value)
+  if (has(/\b(spend|spent|spending|expense|expenses|cost|costs)\b/) && has(/\b(how much|total|amount)\b/)) requested.push('spend-total')
+  if (has(/\b(deposit|deposits|income|revenue|received)\b/) && has(/\b(how much|total|amount)\b/)) requested.push('deposit-total')
+  if (has(/\b(net|surplus|deficit|cash movement)\b/)) requested.push('period-net')
+  if (has(/\b(leave|leaves)\b/) && has(/\b(pending|waiting|review)\b/)) requested.push('leave-pending')
+  if (has(/\battendance\b/) || (has(/\b(present|absent)\b/) && has(/\b(today|employee|employees|people|staff)\b/))) requested.push('attendance-today')
+  if (has(/\btask|tasks|taskboard\b/) && has(/\b(blocked|stuck)\b/)) requested.push('tasks-blocked')
+  else if (has(/\btask|tasks|taskboard\b/) && has(/\b(open|pending|active|how many)\b/)) requested.push('tasks-open')
+  if (has(/\b(meeting|meetings|event|events|schedule)\b/) && has(/\b(upcoming|next|scheduled)\b/)) requested.push(...context.facts.filter(fact => fact.id.startsWith('event-')).slice(0, 5).map(fact => fact.id))
+  if (has(/\b(milestone|milestones|deadline|deadlines)\b/)) requested.push('milestones-upcoming')
+  if (has(/\b(subscription|subscriptions|renewal|renewals)\b/) && has(/\b(active|how many|upcoming)\b/)) requested.push('subscriptions-active')
+  const ids = [...new Set(requested)].filter(id => context.facts.some(fact => fact.id === id))
+  return ids.length ? selectVerifiedFacts({ status: 'answered', factIds: ids }, context) : null
+}
 export function selectVerifiedFacts(raw: unknown, context: AskContext) {
   const result = selection.parse(raw)
   if (result.status === 'insufficient_evidence') return { status: result.status, facts: [] as AskFact[] }
@@ -70,6 +87,8 @@ export function ollamaConfiguration() {
   } catch { return null }
 }
 export async function answerWithOllama(question: string, context: AskContext, configuration: NonNullable<ReturnType<typeof ollamaConfiguration>>, history: AskHistoryMessage[] = []) {
+  const direct = directVerifiedAnswer(question, context)
+  if (direct) return direct
   const modelContext = modelContextFor(question, context)
   const response = await fetch(configuration.url, {
     method: 'POST', redirect: 'error', signal: AbortSignal.timeout(vyomTimeoutMs()),
