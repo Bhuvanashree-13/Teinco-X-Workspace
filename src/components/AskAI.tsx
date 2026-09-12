@@ -5,7 +5,8 @@ import { apiPost, useApi } from '../hooks/useApi'
 type Fact = { id: string; text: string; source: { label: string; href: string } }
 type Evidence = { facts: Fact[]; start: string; end: string; retrievedAt: string; coverage: string[]; message?: string; status?: string }
 type ChatMessage = { role: 'user' | 'assistant'; content: string; evidence?: Evidence }
-type SpeechResultEvent = { results: { 0: { 0: { transcript: string } } } }
+type SpeechRecognitionResultLike = { 0: { transcript: string }; isFinal?: boolean }
+type SpeechResultEvent = { resultIndex?: number; results: { length?: number; [index: number]: SpeechRecognitionResultLike } }
 type SpeechRecognitionLike = { lang: string; continuous: boolean; interimResults: boolean; start(): void; stop(): void; abort(): void; onresult: ((event: SpeechResultEvent) => void) | null; onerror: (() => void) | null; onend: (() => void) | null }
 const examples = ["What's happening in the workspace?", 'What needs my attention today?', 'Are any tasks blocked?', 'What meetings are coming up?', 'How much have we spent?']
 export default function AskAI() {
@@ -23,6 +24,9 @@ export default function AskAI() {
   const [voiceEnabled, setVoiceEnabled] = useState(true)
   const [voiceError, setVoiceError] = useState('')
   const recognition = useRef<SpeechRecognitionLike | null>(null)
+  const busyRef = useRef(false)
+  const listeningRef = useRef(false)
+  const lastVoicePrompt = useRef('')
   useEffect(() => () => { recognition.current?.abort(); window.speechSynthesis?.cancel() }, [])
   function speak(result: Evidence) {
     if (!voiceEnabled || !('speechSynthesis' in window)) return
@@ -40,26 +44,36 @@ export default function AskAI() {
     finally { setTesting(false) }
   }
   async function ask(promptValue: string) {
-    if (busy || !promptValue.trim() || !config?.enabled) return
+    if (busyRef.current || !promptValue.trim() || !config?.enabled) return
     const prompt = promptValue.trim(), history = messages.slice(-12).map(({ role, content }) => ({ role, content }))
-    setBusy(true); setError(''); setAnswer(null); setPreview(false); setMessages(current => [...current, { role: 'user', content: prompt }]); setQuestion('')
+    busyRef.current = true; setBusy(true); setError(''); setAnswer(null); setPreview(false); setMessages(current => [...current, { role: 'user', content: prompt }]); setQuestion('')
     try { const result: Evidence = await apiPost('/flow/ask', { question: prompt, period, history }); setAnswer(result); setMessages(current => [...current, { role: 'assistant', content: result.message || 'Here is what I found.', evidence: result }]); speak(result) }
     catch (err) { setError(err instanceof Error ? err.message : 'Could not answer this question.') }
-    finally { setBusy(false) }
+    finally { busyRef.current = false; setBusy(false) }
   }
   async function submit(event: FormEvent) { event.preventDefault(); await ask(question) }
   function listen() {
-    if (listening) { recognition.current?.stop(); return }
+    if (listeningRef.current) { recognition.current?.stop(); return }
     const SpeechRecognitionConstructor = (window as typeof window & { SpeechRecognition?: new () => SpeechRecognitionLike; webkitSpeechRecognition?: new () => SpeechRecognitionLike }).SpeechRecognition
       || (window as typeof window & { webkitSpeechRecognition?: new () => SpeechRecognitionLike }).webkitSpeechRecognition
     if (!SpeechRecognitionConstructor) { setVoiceError('Voice recognition is not supported by this browser. Use Chrome or Edge.'); return }
-    setVoiceError('')
+    setVoiceError(''); lastVoicePrompt.current = ''
     const instance = new SpeechRecognitionConstructor()
     recognition.current = instance; instance.lang = 'en-IN'; instance.continuous = false; instance.interimResults = false
-    instance.onresult = event => { const transcript = event.results[0][0].transcript.trim(); setQuestion(transcript); if (transcript) void ask(transcript) }
+    instance.onresult = event => {
+      const index = event.resultIndex ?? 0
+      const result = event.results[index]
+      if (!result || result.isFinal === false) return
+      const transcript = result[0]?.transcript.trim() || ''
+      if (!transcript || transcript.toLocaleLowerCase() === lastVoicePrompt.current.toLocaleLowerCase()) return
+      lastVoicePrompt.current = transcript
+      listeningRef.current = false
+      setListening(false); setQuestion(transcript)
+      void ask(transcript)
+    }
     instance.onerror = () => setVoiceError('Vyom could not hear that. Check microphone permission and try again.')
-    instance.onend = () => setListening(false)
-    setListening(true); instance.start()
+    instance.onend = () => { listeningRef.current = false; setListening(false) }
+    listeningRef.current = true; setListening(true); instance.start()
   }
   async function viewFacts() {
     if (busy) return
