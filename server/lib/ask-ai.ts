@@ -3,6 +3,13 @@ export type AskFact = { id: string; text: string; source: { label: string; href:
 export type AskContext = { period: string; start: string; end: string; retrievedAt: string; facts: AskFact[]; coverage: string[] }
 export type AskHistoryMessage = { role: 'user' | 'assistant'; content: string }
 const selection = z.object({ status: z.enum(['answered', 'insufficient_evidence']), factIds: z.array(z.string()).max(8) }).strict()
+const DEFAULT_VYOM_TIMEOUT_MS = 180000
+function vyomTimeoutMs() {
+  const configured = Number(process.env.VYOM_TIMEOUT_MS)
+  return Number.isFinite(configured) && configured >= 10000 && configured <= 600000
+    ? Math.trunc(configured)
+    : DEFAULT_VYOM_TIMEOUT_MS
+}
 export function selectVerifiedFacts(raw: unknown, context: AskContext) {
   const result = selection.parse(raw)
   if (result.status === 'insufficient_evidence') return { status: result.status, facts: [] as AskFact[] }
@@ -29,7 +36,7 @@ export function ollamaConfiguration() {
 }
 export async function answerWithOllama(question: string, context: AskContext, configuration: NonNullable<ReturnType<typeof ollamaConfiguration>>, history: AskHistoryMessage[] = []) {
   const response = await fetch(configuration.url, {
-    method: 'POST', redirect: 'error', signal: AbortSignal.timeout(120000),
+    method: 'POST', redirect: 'error', signal: AbortSignal.timeout(vyomTimeoutMs()),
     headers: { 'Content-Type': 'application/json', ...(configuration.apiKey ? { Authorization: `Bearer ${configuration.apiKey}` } : {}) },
     body: JSON.stringify({ model: configuration.model, stream: false, think: false, options: { temperature: 0, num_predict: 512 },
       format: { type: 'object', additionalProperties: false, required: ['status', 'factIds'], properties: { status: { type: 'string', enum: ['answered', 'insufficient_evidence'] }, factIds: { type: 'array', maxItems: 8, items: { type: 'string', enum: context.facts.map(fact => fact.id) } } } },
