@@ -1,7 +1,7 @@
 import { ReactNode } from 'react'
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native'
 import { Ionicons, type IoniconsIconName } from '@react-native-vector-icons/ionicons'
-import { colors } from '../theme'
+import { colors, themedStyles } from '../theme'
 export function Icon({ name, size = 22, color = colors.primary }: { name: string; size?: number; color?: string }) { return <Ionicons name={name as IoniconsIconName} size={size} color={color} /> }
 export function Button({ label, onPress, icon, busy, disabled, secondary, danger }: { label: string; onPress: () => void; icon?: string; busy?: boolean; disabled?: boolean; secondary?: boolean; danger?: boolean }) {
   const color = secondary ? colors.primary : '#fff'
@@ -15,15 +15,15 @@ export function LoadState({ loading, error, retry }: { loading: boolean; error?:
 export function Section({ title, action, onPress }: { title: string; action?: string; onPress?: () => void }) { return <View style={s.section}><Text style={s.sectionTitle}>{title}</Text>{action && <Pressable onPress={onPress} hitSlop={8}><Text style={s.link}>{action}</Text></Pressable>}</View> }
 export function Panel({ children }: { children: ReactNode }) { return <View style={s.panel}>{children}</View> }
 export function RowValue({ label, value }: { label: string; value?: unknown }) { if (value === undefined || value === null || value === '') return null; return <View style={s.valueRow}><Text style={s.valueLabel}>{label}</Text><Text selectable style={s.valueText}>{String(value)}</Text></View> }
-export const s = StyleSheet.create({
+export const s = themedStyles(() => ({
   page: { flex: 1, backgroundColor: colors.background }, content: { padding: 20, paddingBottom: 42, gap: 18 }, title: { color: colors.ink, fontSize: 29, fontWeight: '800', letterSpacing: -.9 }, caption: { color: colors.muted, fontSize: 13, lineHeight: 20, marginTop: 4 },
   panel: { backgroundColor: colors.surface, borderRadius: 24, padding: 19, borderWidth: 1, borderColor: colors.border, gap: 11, shadowColor: '#315CF3', shadowOpacity: .07, shadowRadius: 16, shadowOffset: { width: 0, height: 7 }, elevation: 2 },
   button: { minHeight: 52, borderRadius: 17, paddingHorizontal: 18, paddingVertical: 14, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8, shadowColor: '#315CF3', shadowOpacity: .18, shadowRadius: 10, shadowOffset: { width: 0, height: 5 }, elevation: 2 }, secondary: { backgroundColor: colors.softBlue, shadowOpacity: 0 }, buttonText: { fontSize: 14, fontWeight: '700' },
-  search: { minHeight: 50, backgroundColor: '#fff', borderRadius: 16, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', gap: 9 }, searchInput: { flex: 1, color: colors.ink, fontSize: 14, paddingVertical: 13 },
-  chips: { gap: 8, paddingVertical: 3 }, chip: { borderRadius: 24, paddingHorizontal: 16, paddingVertical: 11, backgroundColor: '#fff', borderWidth: 1, borderColor: colors.border }, chipActive: { backgroundColor: colors.primary, borderColor: colors.primary }, chipText: { color: colors.muted, fontSize: 13, fontWeight: '700' },
+  search: { minHeight: 50, backgroundColor: colors.surface, borderRadius: 16, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', gap: 9 }, searchInput: { flex: 1, color: colors.ink, fontSize: 14, paddingVertical: 13 },
+  chips: { gap: 8, paddingVertical: 3 }, chip: { borderRadius: 24, paddingHorizontal: 16, paddingVertical: 11, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border }, chipActive: { backgroundColor: colors.primary, borderColor: colors.primary }, chipText: { color: colors.muted, fontSize: 13, fontWeight: '700' },
   tag: { borderRadius: 8, backgroundColor: '#FFF2DF', paddingHorizontal: 8, paddingVertical: 4, alignSelf: 'flex-start' }, tagText: { fontSize: 10, fontWeight: '700', color: colors.amber, textTransform: 'capitalize' },
-  empty: { alignItems: 'center', justifyContent: 'center', paddingVertical: 40, paddingHorizontal: 26, gap: 12 }, emptyIcon: { height: 68, width: 68, borderRadius: 24, backgroundColor: '#E8EEF5', alignItems: 'center', justifyContent: 'center' }, emptyTitle: { color: colors.ink, fontSize: 18, fontWeight: '700' }, emptyMessage: { color: colors.muted, textAlign: 'center', lineHeight: 20, fontSize: 13 },
+  empty: { alignItems: 'center', justifyContent: 'center', paddingVertical: 40, paddingHorizontal: 26, gap: 12 }, emptyIcon: { height: 68, width: 68, borderRadius: 24, backgroundColor: colors.softBlue, alignItems: 'center', justifyContent: 'center' }, emptyTitle: { color: colors.ink, fontSize: 18, fontWeight: '700' }, emptyMessage: { color: colors.muted, textAlign: 'center', lineHeight: 20, fontSize: 13 },
   error: { padding: 18, borderRadius: 18, backgroundColor: '#FFF0F0', gap: 12 }, errorText: { color: colors.danger, fontSize: 14, lineHeight: 20 },
   section: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 }, sectionTitle: { fontWeight: '800', fontSize: 18, color: colors.ink, letterSpacing: -.3 }, link: { color: colors.accent, fontSize: 13, fontWeight: '700' },
   valueRow: { paddingVertical: 10, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border, gap: 5 }, valueLabel: { fontSize: 12, color: colors.muted }, valueText: { fontSize: 15, color: colors.ink, lineHeight: 22, fontWeight: '500' },
-})
+}))

@@ -4,7 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import DateTimePicker, { DateTimePickerAndroid } from '@react-native-community/datetimepicker'
 import { launchImageLibrary } from 'react-native-image-picker'
 import { useRemote } from '../hooks/useRemote'
-import { colors, shortDate } from '../theme'
+import { colors, shortDate, themedStyles } from '../theme'
 import { dateKey, human, type Field, type Row } from './domain'
 import { Button, Empty, Icon, LoadState, Search, s } from './Ui'
 
@@ -49,4 +49,4 @@ export function NativeField({ field, value, onChange, disabled, existingLabel }:
     </> : <TextInput accessibilityLabel={field.label} value={String(value ?? '')} editable={!disabled} onChangeText={onChange} placeholder={field.type === 'number' ? '0.00' : field.label} placeholderTextColor={colors.subtle} keyboardType={field.type === 'number' ? 'decimal-pad' : field.type === 'email' ? 'email-address' : 'default'} autoCapitalize={field.type === 'email' ? 'none' : 'sentences'} multiline={field.type === 'multiline'} style={[styles.input, field.type === 'multiline' && { minHeight: 100, textAlignVertical: 'top' }]} />}
   </View>
 }
-const styles = StyleSheet.create({ field: { gap: 8 }, label: { color: colors.ink, fontSize: 13, fontWeight: '700' }, input: { borderWidth: 1, borderColor: colors.border, backgroundColor: '#fff', borderRadius: 15, padding: 15, minHeight: 52, color: colors.ink, fontSize: 16 }, inputText: { color: colors.ink, fontSize: 14, flexShrink: 1 }, select: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10, borderWidth: 1, borderColor: colors.border, borderRadius: 15, padding: 15, minHeight: 52, backgroundColor: '#fff' }, toggle: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 52 }, option: { paddingVertical: 18, flexDirection: 'row', alignItems: 'center', gap: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border } })
+const styles = themedStyles(() => ({ field: { gap: 8 }, label: { color: colors.ink, fontSize: 13, fontWeight: '700' }, input: { borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, borderRadius: 15, padding: 15, minHeight: 52, color: colors.ink, fontSize: 16 }, inputText: { color: colors.ink, fontSize: 14, flexShrink: 1 }, select: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10, borderWidth: 1, borderColor: colors.border, borderRadius: 15, padding: 15, minHeight: 52, backgroundColor: colors.surface }, toggle: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 52 }, option: { paddingVertical: 18, flexDirection: 'row', alignItems: 'center', gap: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border } }))

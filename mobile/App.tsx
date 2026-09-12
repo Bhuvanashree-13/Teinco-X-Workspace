@@ -4,7 +4,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack'
 import { ActivityIndicator, StatusBar, View } from 'react-native'
 import { SafeAreaProvider, SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { AuthProvider, useAuth } from './src/auth/AuthContext'
-import { colors } from './src/theme'
+import { colors, MobileThemeProvider, useMobileTheme } from './src/theme'
 import { LoginScreen } from './src/screens/LoginScreen'
 import { AccountScreen } from './src/screens/AccountScreen'
 import { HomeScreen, GroupScreen, MoreScreen, ScheduleScreen } from './src/native/HomeScreens'
@@ -20,7 +20,6 @@ import type { RootStack } from './src/native/navigation'
 import { AppUpdatePrompt } from './src/updates'
 const Tabs = createBottomTabNavigator()
 const Stack = createNativeStackNavigator<RootStack>()
-const theme = { ...DefaultTheme, colors: { ...DefaultTheme.colors, background: colors.background, primary: colors.primary, card: '#fff', text: colors.ink, border: colors.border } }
 function FinanceScreen() { return <GroupScreen group="finance" /> }
 function PeopleScreen() { return <GroupScreen group="people" /> }
 function MainTabs() {
@@ -40,6 +39,8 @@ function MainTabs() {
 }
 function Shell() {
   const { user, restoring } = useAuth()
+  const { theme: themeMode } = useMobileTheme()
+  const theme = { ...DefaultTheme, dark: themeMode === 'dark', colors: { ...DefaultTheme.colors, background: colors.background, primary: colors.primary, card: colors.surface, text: colors.ink, border: colors.border, notification: colors.violet } }
   if (restoring) return <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.background }}><ActivityIndicator color={colors.accent} size="large" /></View>
   if (!user) return <LoginScreen />
   return <NavigationContainer theme={theme}><Stack.Navigator screenOptions={{ headerStyle: { backgroundColor: colors.background }, headerTintColor: colors.primary, headerShadowVisible: false, headerTitleStyle: { fontSize: 17, fontWeight: '700' }, contentStyle: { backgroundColor: colors.background } }}>
@@ -54,4 +55,5 @@ function Shell() {
     <Stack.Screen name="Account" component={AccountScreen} options={{ title: 'Account' }} />
   </Stack.Navigator></NavigationContainer>
 }
-export default function App() { return <SafeAreaProvider><StatusBar barStyle="dark-content" backgroundColor={colors.background} /><AuthProvider><Shell /><AppUpdatePrompt /></AuthProvider></SafeAreaProvider> }
+export default function App() { return <MobileThemeProvider><SafeAreaProvider><ThemedStatusBar/><AuthProvider><Shell /><AppUpdatePrompt /></AuthProvider></SafeAreaProvider></MobileThemeProvider> }
+function ThemedStatusBar() { const { theme } = useMobileTheme(); return <StatusBar barStyle={theme === 'dark' ? 'light-content' : 'dark-content'} backgroundColor={colors.statusBar} /> }

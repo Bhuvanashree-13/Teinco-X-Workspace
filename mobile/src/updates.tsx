@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { AppState, Linking, Modal, Pressable, StyleSheet, Text, View } from 'react-native'
 import { normalizeServerUrl } from './api'
-import { colors } from './theme'
+import { colors, themedStyles, useMobileTheme } from './theme'
 import { APP_VERSION, isNewerVersion } from './update-version'
 const updateServer = normalizeServerUrl('https://teinco-x-workspace-production.up.railway.app')
 
@@ -21,6 +21,7 @@ export async function checkForAndroidUpdate(signal?: AbortSignal) {
 }
 
 export function AppUpdatePrompt() {
+  useMobileTheme()
   const [update, setUpdate] = useState<AndroidUpdate | null>(null)
   const [dismissed, setDismissed] = useState(false)
   useEffect(() => {
@@ -45,9 +46,9 @@ export function AppUpdatePrompt() {
   </Modal>
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   backdrop: { flex: 1, backgroundColor: 'rgba(15, 23, 42, .55)', alignItems: 'center', justifyContent: 'center', padding: 24 },
-  card: { width: '100%', maxWidth: 420, borderRadius: 24, backgroundColor: '#fff', padding: 24, gap: 14 },
+  card: { width: '100%', maxWidth: 420, borderRadius: 24, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, padding: 24, gap: 14 },
   eyebrow: { color: colors.accent, fontSize: 11, fontWeight: '800', letterSpacing: 1.2 },
   title: { color: colors.ink, fontSize: 25, fontWeight: '800' },
   message: { color: colors.muted, fontSize: 15, lineHeight: 22 },
@@ -56,4 +57,4 @@ const styles = StyleSheet.create({
   secondary: { minHeight: 46, borderRadius: 15, backgroundColor: colors.softBlue, alignItems: 'center', justifyContent: 'center' },
   secondaryText: { color: colors.primary, fontSize: 14, fontWeight: '700' },
   caption: { color: colors.muted, fontSize: 12, lineHeight: 18 },
-})
+}))
