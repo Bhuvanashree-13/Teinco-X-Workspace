@@ -225,7 +225,7 @@ app.get('/api/health', (req, res) => {
 
 app.get('/api/mobile/android/update', (req, res) => {
   const version = process.env.ANDROID_LATEST_VERSION || '2.0.13'
-  const versionCode = Number(process.env.ANDROID_LATEST_VERSION_CODE || 17)
+  const versionCode = Number(process.env.ANDROID_LATEST_VERSION_CODE || 18)
   const downloadUrl = process.env.ANDROID_APK_URL || `https://github.com/Bhuvanashree-13/Teinco-X-Workspace/releases/download/v${version}/Teinco-X-${version}.apk`
   res.json({
     version,
