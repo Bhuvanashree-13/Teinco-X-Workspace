@@ -18,7 +18,7 @@ Unsupported questions should return insufficient evidence. The schema and source
 
 ### Configure Ollama on the app server
 
-- `ASK_AI_OLLAMA_URL`: base URL of an Ollama server reachable from the Railway app, without `/api/chat`.
+- `VYOM_OLLAMA_URL`: base URL of an Ollama server reachable from the Railway app, without `/api/chat`.
 - `ASK_AI_MODEL`: exact installed model name that supports structured output.
 - `ASK_AI_API_KEY`: optional bearer token for an authenticated gateway. Store it only in server variables, never in a Vite variable or Git.
 

@@ -422,7 +422,7 @@ Reference: [Google server-side ID token verification](https://developers.google.
 
 ### Vyom model connection
 
-Local development reads `.env` when running `npm run dev`. Set `ASK_AI_OLLAMA_URL` to your Ollama base URL (for example `http://127.0.0.1:11434`) and `ASK_AI_MODEL` to an installed model from `ollama list`. Optionally set `ASK_AI_API_KEY` for an authenticated Ollama gateway. Restart the app server after changing these values.
+Local development reads `.env` when running `npm run dev`. Set `VYOM_OLLAMA_URL` to your Ollama base URL (for example `http://127.0.0.1:11434`) and `ASK_AI_MODEL` to an installed model from `ollama list`. Optionally set `ASK_AI_API_KEY` for an authenticated Ollama gateway. Restart the app server after changing these values.
 
 For a hosted deployment, set these variables on the application service. The endpoint must be reachable from that server; localhost refers to the hosted server, not your computer. Never put gateway credentials in `VITE_` variables.
 

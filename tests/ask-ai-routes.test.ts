@@ -4,12 +4,12 @@ import express from 'express'
 import jwt from 'jsonwebtoken'
 process.env.DATABASE_URL = 'mysql://test:test@localhost:3306/test'
 process.env.JWT_SECRET = 'ask-route-test-secret'
-delete process.env.ASK_AI_OLLAMA_URL
+delete process.env.VYOM_OLLAMA_URL
 delete process.env.ASK_AI_MODEL
 const { prisma } = await import('../server/db.js')
 const { default: flow } = await import('../server/routes/flow.js')
 // Prisma may load the local .env during import. Keep disabled-config tests isolated.
-delete process.env.ASK_AI_OLLAMA_URL
+delete process.env.VYOM_OLLAMA_URL
 delete process.env.ASK_AI_MODEL
 test('Vyom blocks employees before retrieval and reconciles evidence with database aggregates', async () => {
   const restorations: (() => void)[] = []

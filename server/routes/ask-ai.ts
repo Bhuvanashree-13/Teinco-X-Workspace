@@ -75,7 +75,7 @@ router.get('/config', (_req, res) => {
 })
 router.post('/test', async (_req, res) => {
   const config = ollamaConfiguration()
-  if (!config) return res.status(503).json({ error: 'Set ASK_AI_OLLAMA_URL and ASK_AI_MODEL on the app server, then restart it.' })
+  if (!config) return res.status(503).json({ error: 'Set VYOM_OLLAMA_URL and ASK_AI_MODEL on the app server, then restart it.' })
   try {
     const now = new Date().toISOString()
     const answer = await answerWithOllama('How much was spent in the selected period?', {

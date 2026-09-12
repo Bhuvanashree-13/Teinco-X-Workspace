@@ -18,7 +18,7 @@ export function selectVerifiedFacts(raw: unknown, context: AskContext) {
   return { status: result.status, facts }
 }
 export function ollamaConfiguration() {
-  const base = process.env.ASK_AI_OLLAMA_URL?.trim()
+  const base = process.env.VYOM_OLLAMA_URL?.trim()
   const model = process.env.ASK_AI_MODEL?.trim()
   if (!base || !model) return null
   try {
