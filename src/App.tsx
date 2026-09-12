@@ -1,4 +1,4 @@
-import { Routes, Route } from 'react-router-dom'
+import { Navigate, Routes, Route } from 'react-router-dom'
 import Layout from './components/Layout'
 import Dashboard from './components/Dashboard'
 import Expenses from './components/Expenses'
@@ -13,6 +13,7 @@ import Login from './components/Login'
 import Payslips from './components/Payslips'
 import Deposits from './components/Deposits'
 import ProjectManagement from './components/ProjectManagement'
+import PublicHome from './components/PublicHome'
 import { RoleProvider, useRole } from './context/RoleContext'
 import { ToastProvider } from './components/Toast'
 
@@ -30,7 +31,7 @@ function AppRoutes() {
     )
   }
 
-  if (!user) return <Login />
+  if (!user) return <Routes><Route path="/" element={<PublicHome />} /><Route path="/login" element={<Login />} /><Route path="*" element={<Navigate to="/login" replace />} /></Routes>
 
   return (
     <Routes>
@@ -48,6 +49,7 @@ function AppRoutes() {
         <Route path="flow" element={<Flow />} />
         <Route path="settings" element={<Settings />} />
       </Route>
+      <Route path="/login" element={<Navigate to="/" replace />} />
     </Routes>
   )
 }
