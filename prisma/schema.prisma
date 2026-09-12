@@ -153,6 +153,7 @@ model Project {
   code           String              @unique
   name           String
   description    String?              @db.Text
+  logoDataUrl    String?              @db.LongText
   status         String              @default("active") // active | paused | completed | archived
   startDate      DateTime?
   endDate        DateTime?

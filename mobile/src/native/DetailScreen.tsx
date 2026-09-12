@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Alert, ScrollView, Share, Text, View } from 'react-native'
+import { Alert, Image, ScrollView, Share, Text, View } from 'react-native'
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import { useAuth } from '../auth/AuthContext'
 import { request } from '../api'
@@ -43,6 +43,7 @@ export function DetailScreen({ route, navigation }: NativeStackScreenProps<RootS
     <Panel>
       {module.fields.filter(field => !field.admin || role === 'admin').map(field => {
         let value = row[field.key]
+        if (field.type === 'image') return value ? <Image key={field.key} source={{ uri: String(value) }} accessibilityLabel={field.label} style={{ width: 96, height: 96, borderRadius: 20, marginBottom: 12 }} /> : <RowValue key={field.key} label={field.label} value="No image" />
         if (field.lookup) value = row[field.key.replace(/Id$/, '')]?.name || (value ? 'Linked record' : null)
         if (field.type === 'boolean' && value !== undefined) value = value ? 'Yes' : 'No'
         if (field.type === 'date' && value) value = shortDate(value)

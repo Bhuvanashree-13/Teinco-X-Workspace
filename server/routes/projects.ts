@@ -14,7 +14,8 @@ const issueSchema = z.object({
   assigneeId: z.number().int().positive().nullable().optional(), sprint: z.string().trim().max(100).nullable().optional(), storyPoints: z.number().int().min(0).max(100).nullable().optional(),
   dueDate: z.coerce.date().nullable().optional(), labels: z.string().trim().max(500).nullable().optional(),
 }).strict()
-const projectSchema = z.object({ code: z.string().trim().max(20).optional(), name: z.string().trim().min(2).max(160), description: z.string().max(5000).nullable().optional(), status: z.enum(['active', 'paused', 'completed', 'archived']).default('active'), startDate: z.coerce.date().nullable().optional(), endDate: z.coerce.date().nullable().optional(), budget: z.number().min(0).optional(), color: z.string().regex(/^#[0-9a-f]{6}$/i).default('#6366f1') }).strict()
+const projectLogo = z.string().max(1_500_000).regex(/^data:image\/(png|jpe?g|webp);base64,[a-z0-9+/=\r\n]+$/i).nullable().optional()
+const projectSchema = z.object({ code: z.string().trim().max(20).optional(), name: z.string().trim().min(2).max(160), description: z.string().max(5000).nullable().optional(), logoDataUrl: projectLogo, status: z.enum(['active', 'paused', 'completed', 'archived']).default('active'), startDate: z.coerce.date().nullable().optional(), endDate: z.coerce.date().nullable().optional(), budget: z.number().min(0).optional(), color: z.string().regex(/^#[0-9a-f]{6}$/i).default('#6366f1') }).strict()
 const includeIssue = { project: { select: { id: true, code: true, name: true, color: true } }, assignee: { select: { id: true, employeeId: true, name: true } }, reporter: { select: { id: true, name: true, email: true } }, comments: { orderBy: { createdAt: 'asc' as const }, include: { author: { select: { id: true, name: true, email: true } } } }, activities: { orderBy: { createdAt: 'desc' as const }, take: 30 } }
 
 router.get('/', async (_req, res) => {
@@ -70,6 +71,15 @@ router.delete('/issues/:issueId', requireAdmin, async (req, res) => {
   const id = Number(req.params.issueId)
   if (!Number.isInteger(id)) return res.status(400).json({ error: 'Invalid work item' })
   try { await prisma.workItem.delete({ where: { id } }); res.json({ success: true }) } catch { res.status(404).json({ error: 'Work item not found' }) }
+})
+router.get('/:id', async (req, res) => {
+  const id = Number(req.params.id)
+  if (!Number.isInteger(id) || id < 1) return res.status(400).json({ error: 'Invalid project' })
+  try {
+    const project = await prisma.project.findUnique({ where: { id }, include: { _count: { select: { workItems: true } } } })
+    if (!project) return res.status(404).json({ error: 'Project not found' })
+    res.json(project)
+  } catch { res.status(500).json({ error: 'Failed to load project' }) }
 })
 router.get('/:id/spend', async (req, res) => {
   try {

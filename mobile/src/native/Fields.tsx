@@ -1,7 +1,8 @@
 import { useState } from 'react'
-import { FlatList, Modal, Platform, Pressable, StyleSheet, Switch, Text, TextInput, View } from 'react-native'
+import { FlatList, Image, Modal, Platform, Pressable, StyleSheet, Switch, Text, TextInput, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import DateTimePicker, { DateTimePickerAndroid } from '@react-native-community/datetimepicker'
+import { launchImageLibrary } from 'react-native-image-picker'
 import { useRemote } from '../hooks/useRemote'
 import { colors, shortDate } from '../theme'
 import { dateKey, human, type Field, type Row } from './domain'
@@ -19,7 +20,14 @@ export function NativeField({ field, value, onChange, disabled, existingLabel }:
       onValueChange: (_event, date) => { onChange(field.type === 'date' ? dateKey(date) : date.toISOString()) },
     })
   }
+  const chooseImage = async () => {
+    const result = await launchImageLibrary({ mediaType: 'photo', includeBase64: true, selectionLimit: 1, maxWidth: 800, maxHeight: 800 })
+    const asset = result.assets?.[0]
+    if (!asset?.base64 || !asset.type || !['image/png', 'image/jpeg', 'image/webp'].includes(asset.type) || (asset.fileSize || 0) > 1_000_000) return
+    onChange(`data:${asset.type};base64,${asset.base64}`)
+  }
   if (field.type === 'boolean') return <View style={styles.toggle}><Text style={styles.label}>{field.label}</Text><Switch accessibilityLabel={field.label} value={Boolean(value)} disabled={disabled} onValueChange={onChange} trackColor={{ true: colors.accent }} /></View>
+  if (field.type === 'image') return <View style={styles.field}><Text style={styles.label}>{field.label}</Text>{value ? <Image source={{ uri: String(value) }} style={{ width: 88, height: 88, borderRadius: 18 }} /> : null}<Button secondary disabled={disabled} label={value ? 'Change image' : 'Choose image'} onPress={() => void chooseImage()} />{value ? <Pressable onPress={() => onChange('')}><Text style={s.link}>Remove image</Text></Pressable> : null}<Text style={s.caption}>PNG, JPEG or WebP · maximum 1 MB</Text></View>
   return <View style={styles.field}>
     <Text style={styles.label}>{field.label}{field.required ? ' *' : ''}</Text>
     {field.type === 'select' ? <>
