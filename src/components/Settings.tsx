@@ -184,7 +184,7 @@ export default function Settings() {
           <div className="mb-4 flex items-center gap-2"><Bot className="h-5 w-5" /><h3 className="text-lg font-semibold dark:text-white">Vyom connection</h3></div>
           <p className="text-sm leading-6 text-slate-600 dark:text-slate-300">Vyom uses Ollama to select verified workspace facts. Configure the connection on the computer or server running this application.</p>
           <dl className="mt-4 space-y-4 text-sm">
-            <div><dt className="font-medium">Server environment variables</dt><dd className="mt-2 break-all rounded-lg bg-slate-50 p-3 font-mono text-xs leading-6 dark:bg-gray-900">VYOM_OLLAMA_URL<br />ASK_AI_MODEL<br />ASK_AI_API_KEY (optional gateway credential)</dd></div>
+            <div><dt className="font-medium">Server environment variables</dt><dd className="mt-2 break-all rounded-lg bg-slate-50 p-3 font-mono text-xs leading-6 dark:bg-gray-900">VYOM_OLLAMA_URL<br />VYOM_MODEL<br />VYOM_API_KEY (optional gateway credential)</dd></div>
             <div><dt className="font-medium">After configuration</dt><dd className="mt-1 text-slate-600 dark:text-slate-300">Restart the app server, then open Flow → Vyom → Test connection. The test uses sample facts.</dd></div>
           </dl>
           <p className="mt-4 text-xs leading-5 text-slate-500 dark:text-slate-400">A hosted app needs an endpoint reachable from its server. Keep gateway credentials in server environment variables.</p>

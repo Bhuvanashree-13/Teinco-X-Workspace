@@ -19,9 +19,9 @@ Unsupported questions should return insufficient evidence. The schema and source
 ### Configure Ollama on the app server
 
 - `VYOM_OLLAMA_URL`: base URL of an Ollama server reachable from the Railway app, without `/api/chat`.
-- `ASK_AI_MODEL`: exact installed model name that supports structured output.
+- `VYOM_MODEL`: exact installed model name that supports structured output.
 - `VYOM_TIMEOUT_MS`: optional model request timeout in milliseconds; defaults to 180,000.
-- `ASK_AI_API_KEY`: optional bearer token for an authenticated gateway. Store it only in server variables, never in a Vite variable or Git.
+- `VYOM_API_KEY`: optional bearer token for an authenticated gateway. Store it only in server variables, never in a Vite variable or Git.
 
 Use your approved private service or an authenticated HTTPS gateway. A localhost URL on Railway refers to that container, not your laptop. The operator must approve this service to receive the question and retrieved financial facts. This implementation uses Ollama's `/api/chat` structured-output API; Ollama Cloud does not currently support structured outputs. No model is downloaded or provisioned automatically. Missing configuration leaves the question button disabled, with View available facts still usable. Configured-but-unreachable services produce an explicit error; configuration presence is not a connectivity check.
 

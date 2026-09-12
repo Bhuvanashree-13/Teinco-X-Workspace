@@ -78,12 +78,14 @@ export function selectVerifiedFacts(raw: unknown, context: AskContext) {
 }
 export function ollamaConfiguration() {
   const base = process.env.VYOM_OLLAMA_URL?.trim()
-  const model = process.env.ASK_AI_MODEL?.trim()
+  // Prefer the Vyom names. Keep the former names as migration fallbacks so an
+  // existing deployment stays available while its server variables are renamed.
+  const model = process.env.VYOM_MODEL?.trim() || process.env.ASK_AI_MODEL?.trim()
   if (!base || !model) return null
   try {
     const url = new URL(base)
     if (!['https:', 'http:'].includes(url.protocol) || url.username || url.password || url.search || url.hash) return null
-    return { url: `${base.replace(/\/$/, '')}/api/chat`, model, apiKey: process.env.ASK_AI_API_KEY?.trim() }
+    return { url: `${base.replace(/\/$/, '')}/api/chat`, model, apiKey: process.env.VYOM_API_KEY?.trim() || process.env.ASK_AI_API_KEY?.trim() }
   } catch { return null }
 }
 export async function answerWithOllama(question: string, context: AskContext, configuration: NonNullable<ReturnType<typeof ollamaConfiguration>>, history: AskHistoryMessage[] = []) {
