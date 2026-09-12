@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
-import { Bot, Send, FileText, Mic, MicOff, Volume2, VolumeX } from 'lucide-react'
+import { Bot, Send, FileText, Mic, MicOff, Volume2, VolumeX, Plus, Trash2 } from 'lucide-react'
 import { apiPost, useApi } from '../hooks/useApi'
 type Fact = { id: string; text: string; source: { label: string; href: string } }
 type Evidence = { facts: Fact[]; start: string; end: string; retrievedAt: string; coverage: string[]; message?: string; status?: string }
 type ChatMessage = { role: 'user' | 'assistant'; content: string; evidence?: Evidence }
+type Conversation = { id: number; title: string; period: string; updatedAt: string; messages: ChatMessage[] }
 type SpeechRecognitionResultLike = { 0: { transcript: string }; isFinal?: boolean }
 type SpeechResultEvent = { resultIndex?: number; results: { length?: number; [index: number]: SpeechRecognitionResultLike } }
 type SpeechRecognitionLike = { lang: string; continuous: boolean; interimResults: boolean; start(): void; stop(): void; abort(): void; onresult: ((event: SpeechResultEvent) => void) | null; onerror: (() => void) | null; onend: (() => void) | null }
@@ -20,6 +21,8 @@ export default function AskAI() {
   const [connection, setConnection] = useState('')
   const [testing, setTesting] = useState(false)
   const [messages, setMessages] = useState<ChatMessage[]>([])
+  const [conversations, setConversations] = useState<Conversation[]>([])
+  const [conversationId, setConversationId] = useState<number | null>(null)
   const [listening, setListening] = useState(false)
   const [voiceEnabled, setVoiceEnabled] = useState(true)
   const [voiceError, setVoiceError] = useState('')
@@ -27,7 +30,33 @@ export default function AskAI() {
   const busyRef = useRef(false)
   const listeningRef = useRef(false)
   const lastVoicePrompt = useRef('')
-  useEffect(() => () => { recognition.current?.abort(); window.speechSynthesis?.cancel() }, [])
+  useEffect(() => {
+    void loadConversations()
+    return () => { recognition.current?.abort(); window.speechSynthesis?.cancel() }
+  }, [])
+  async function loadConversations(preferredId?: number) {
+    try {
+      const token = localStorage.getItem('teinco-x-token')
+      const response = await fetch('/api/flow/ask/conversations', { headers: { Authorization: `Bearer ${token || ''}` } })
+      if (!response.ok) return
+      const rows: Conversation[] = await response.json()
+      setConversations(rows)
+      const selected = rows.find(row => row.id === preferredId) || rows[0]
+      if (selected) { setConversationId(selected.id); setMessages(selected.messages); setPeriod(selected.period) }
+    } catch { /* A new conversation remains available if history cannot load. */ }
+  }
+  async function newConversation() {
+    const created: Conversation = await apiPost('/flow/ask/conversations', { period })
+    setConversations(current => [created, ...current]); setConversationId(created.id); setMessages([]); setAnswer(null); setQuestion('')
+  }
+  async function deleteConversation() {
+    if (!conversationId || busy) return
+    const token = localStorage.getItem('teinco-x-token')
+    const response = await fetch(`/api/flow/ask/conversations/${conversationId}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token || ''}` } })
+    if (!response.ok) { setError('Could not delete this conversation.'); return }
+    const remaining = conversations.filter(row => row.id !== conversationId)
+    setConversations(remaining); setConversationId(remaining[0]?.id || null); setMessages(remaining[0]?.messages || []); setAnswer(null)
+  }
   function speak(result: Evidence) {
     if (!voiceEnabled || !('speechSynthesis' in window)) return
     const text = result.facts?.length ? result.facts.map(fact => fact.text).join(' ') : result.message || ''
@@ -47,7 +76,7 @@ export default function AskAI() {
     if (busyRef.current || !promptValue.trim() || !config?.enabled) return
     const prompt = promptValue.trim(), history = messages.slice(-12).map(({ role, content }) => ({ role, content }))
     busyRef.current = true; setBusy(true); setError(''); setAnswer(null); setPreview(false); setMessages(current => [...current, { role: 'user', content: prompt }]); setQuestion('')
-    try { const result: Evidence = await apiPost('/flow/ask', { question: prompt, period, history }); setAnswer(result); setMessages(current => [...current, { role: 'assistant', content: result.message || 'Here is what I found.', evidence: result }]); speak(result) }
+    try { const result: Evidence & { conversationId: number } = await apiPost('/flow/ask', { question: prompt, period, history, ...(conversationId ? { conversationId } : {}) }); setConversationId(result.conversationId); setAnswer(result); setMessages(current => [...current, { role: 'assistant', content: result.message || 'Here is what I found.', evidence: result }]); speak(result); void loadConversations(result.conversationId) }
     catch (err) { setError(err instanceof Error ? err.message : 'Could not answer this question.') }
     finally { busyRef.current = false; setBusy(false) }
   }
@@ -90,6 +119,7 @@ export default function AskAI() {
     <div className="flex items-center gap-3"><span className="grid h-11 w-11 place-items-center rounded-xl bg-blue-50 text-blue-600 dark:bg-blue-950 dark:text-blue-300"><Bot className="h-6 w-6" /></span><div><h3 className="text-xl font-semibold text-slate-900 dark:text-white">Vyom</h3><p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Your conversational workspace assistant, with verified sources.</p></div></div>
     {configLoading ? <p role="status">Checking model availability…</p> : configError ? <p role="alert" className="text-red-700 dark:text-red-300">Could not check Vyom configuration. <button onClick={() => void refetch()} className="underline">Retry</button></p> : !config?.enabled && <p className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">Vyom needs a model connection. Open Settings for setup details. You can still view verified workspace facts below.</p>}
     <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800"><div><p className="text-sm font-medium">{config?.enabled ? `Ollama · ${config.model}` : 'Model not configured'}</p><p role="status" className="mt-1 text-xs text-slate-500 dark:text-slate-400">{connection || 'Test the connection before asking a question.'}</p></div><button type="button" disabled={testing || !config?.enabled} onClick={() => void testConnection()} className="rounded-lg border px-3 py-2 text-sm disabled:opacity-50 dark:border-gray-600">{testing ? 'Testing…' : 'Test connection'}</button></div>
+    <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-800"><select aria-label="Saved Vyom conversations" value={conversationId || ''} onChange={event => { const selected = conversations.find(row => row.id === Number(event.target.value)); if (selected) { setConversationId(selected.id); setMessages(selected.messages); setPeriod(selected.period); setAnswer(null) } }} className="min-w-0 flex-1 rounded-lg border bg-white px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-900"><option value="">Unsaved conversation</option>{conversations.map(row => <option key={row.id} value={row.id}>{row.title}</option>)}</select><button type="button" onClick={() => void newConversation()} className="flex items-center gap-1 rounded-lg border px-3 py-2 text-sm dark:border-gray-600"><Plus className="h-4 w-4" />New</button><button type="button" disabled={!conversationId || busy} onClick={() => void deleteConversation()} className="flex items-center gap-1 rounded-lg border border-red-200 px-3 py-2 text-sm text-red-700 disabled:opacity-50 dark:border-red-900 dark:text-red-300"><Trash2 className="h-4 w-4" />Delete</button></div>
     {!!messages.length && <div aria-live="polite" className="space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-gray-700 dark:bg-gray-900/40">{messages.map((message, index) => <div key={index} className={`max-w-3xl rounded-xl p-4 ${message.role === 'user' ? 'ml-auto bg-blue-600 text-white' : 'bg-white dark:bg-gray-800'}`}><p className="text-sm leading-6">{message.content}</p>{message.evidence?.facts.map((fact, factIndex) => <div key={fact.id} className="mt-3 border-t border-slate-200 pt-3 dark:border-gray-700"><p className="text-sm">{fact.text}</p><Link to={fact.source.href} className="mt-1 inline-block text-xs text-blue-700 underline dark:text-blue-300">[{factIndex + 1}] {fact.source.label}</Link></div>)}</div>)}</div>}
     <form onSubmit={submit} className="rounded-xl border border-slate-200 bg-white p-5 dark:border-gray-700 dark:bg-gray-800">
       <label className="flex flex-col gap-2 text-sm font-medium sm:flex-row sm:items-center sm:gap-4">Reporting period<select disabled={busy} value={period} onChange={event => { setPeriod(event.target.value); setAnswer(null); setError('') }} className="w-full rounded-lg border bg-white sm:w-auto px-3 py-2 dark:border-gray-600 dark:bg-gray-900"><option value="month">Month to date</option><option value="last_month">Last completed month</option><option value="year">Year to date</option></select></label>

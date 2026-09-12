@@ -9,7 +9,7 @@ import type { AuthedRequest } from '../middleware/auth.js'
 const router = Router()
 const periodSchema = z.enum(['month', 'last_month', 'year'])
 const historySchema = z.array(z.object({ role: z.enum(['user', 'assistant']), content: z.string().trim().min(1).max(2000) }).strict()).max(12).default([])
-const requestSchema = z.object({ question: z.string().trim().min(3).max(1000), period: periodSchema, history: historySchema }).strict()
+const requestSchema = z.object({ question: z.string().trim().min(3).max(1000), period: periodSchema, history: historySchema.optional(), conversationId: z.number().int().positive().optional() }).strict()
 const money = (amount: number) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 2 }).format(amount)
 
 export async function retrieveAskContext(period: z.infer<typeof periodSchema>): Promise<AskContext> {
@@ -92,6 +92,28 @@ router.get('/context', async (req, res) => {
   if (!parsed.success) return res.status(400).json({ error: 'Select a supported reporting period.' })
   try { res.set('Cache-Control', 'no-store'); res.json(await retrieveAskContext(parsed.data)) } catch { res.status(500).json({ error: 'Could not retrieve workspace evidence.' }) }
 })
+const conversationSelect = {
+  id: true, title: true, period: true, createdAt: true, updatedAt: true,
+  messages: { orderBy: { createdAt: 'asc' as const }, take: 50, select: { id: true, role: true, content: true, evidence: true, createdAt: true } },
+}
+router.get('/conversations', async (req: AuthedRequest, res) => {
+  const conversations = await prisma.vyomConversation.findMany({ where: { userId: req.user!.userId }, orderBy: { updatedAt: 'desc' }, take: 20, select: conversationSelect })
+  res.set('Cache-Control', 'no-store')
+  res.json(conversations)
+})
+router.post('/conversations', async (req: AuthedRequest, res) => {
+  const parsed = z.object({ period: periodSchema.default('month') }).safeParse(req.body || {})
+  if (!parsed.success) return res.status(400).json({ error: 'Select a supported reporting period.' })
+  const conversation = await prisma.vyomConversation.create({ data: { userId: req.user!.userId, title: 'New conversation', period: parsed.data.period }, select: conversationSelect })
+  res.status(201).json(conversation)
+})
+router.delete('/conversations/:id', async (req: AuthedRequest, res) => {
+  const id = Number(req.params.id)
+  if (!Number.isInteger(id) || id < 1) return res.status(400).json({ error: 'Invalid conversation.' })
+  const deleted = await prisma.vyomConversation.deleteMany({ where: { id, userId: req.user!.userId } })
+  if (!deleted.count) return res.status(404).json({ error: 'Conversation not found.' })
+  res.json({ success: true })
+})
 const active = new Set<number>()
 router.post('/', async (req: AuthedRequest, res) => {
   const parsed = requestSchema.safeParse(req.body)
@@ -102,10 +124,23 @@ router.post('/', async (req: AuthedRequest, res) => {
   if (active.has(userId)) return res.status(429).json({ error: 'A question is already running. Please wait for it to finish.' })
   active.add(userId)
   try {
+    let conversation = parsed.data.conversationId
+      ? await prisma.vyomConversation.findFirst({ where: { id: parsed.data.conversationId, userId }, include: { messages: { orderBy: { createdAt: 'desc' }, take: 12 } } })
+      : null
+    if (parsed.data.conversationId && !conversation) return res.status(404).json({ error: 'Conversation not found.' })
+    if (!conversation) conversation = await prisma.vyomConversation.create({ data: { userId, title: parsed.data.question.slice(0, 80), period: parsed.data.period }, include: { messages: true } })
+    const storedHistory = [...conversation.messages].reverse().map(message => ({ role: message.role as 'user' | 'assistant', content: message.content }))
+    const history = storedHistory.length ? storedHistory : parsed.data.history || []
     const context = await retrieveAskContext(parsed.data.period)
-    const answer = await answerWithOllama(parsed.data.question, context, config, parsed.data.history)
+    const answer = await answerWithOllama(parsed.data.question, context, config, history)
+    const message = answer.status === 'answered' ? 'Here is what I found in the current workspace records.' : 'I cannot verify that from the information currently stored in this app. Ask about Finance, People, attendance, leave, Taskboard, Schedule, subscriptions, or Flow.'
+    await prisma.$transaction([
+      prisma.vyomMessage.create({ data: { conversationId: conversation.id, role: 'user', content: parsed.data.question } }),
+      prisma.vyomMessage.create({ data: { conversationId: conversation.id, role: 'assistant', content: message, evidence: JSON.parse(JSON.stringify({ ...answer, period: context.period, start: context.start, end: context.end, retrievedAt: context.retrievedAt, coverage: context.coverage })) } }),
+      prisma.vyomConversation.update({ where: { id: conversation.id }, data: { period: parsed.data.period, title: conversation.title === 'New conversation' ? parsed.data.question.slice(0, 80) : conversation.title } }),
+    ])
     res.set('Cache-Control', 'no-store')
-    res.json({ ...answer, period: context.period, start: context.start, end: context.end, retrievedAt: context.retrievedAt, coverage: context.coverage, message: answer.status === 'answered' ? 'Here is what I found in the current workspace records.' : 'I cannot verify that from the information currently stored in this app. Ask about Finance, People, attendance, leave, Taskboard, Schedule, subscriptions, or Flow.' })
+    res.json({ ...answer, period: context.period, start: context.start, end: context.end, retrievedAt: context.retrievedAt, coverage: context.coverage, message, conversationId: conversation.id })
   } catch { res.status(502).json({ error: 'The model could not return a verified answer. Retry or view the available facts.' }) }
   finally { active.delete(userId) }
 })

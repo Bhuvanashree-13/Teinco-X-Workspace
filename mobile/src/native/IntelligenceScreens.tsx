@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { KeyboardAvoidingView, NativeEventEmitter, NativeModules, PermissionsAndroid, Platform, Pressable, RefreshControl, ScrollView, Text, TextInput, View } from 'react-native'
+import { Alert, KeyboardAvoidingView, NativeEventEmitter, NativeModules, PermissionsAndroid, Platform, Pressable, RefreshControl, ScrollView, Text, TextInput, View } from 'react-native'
 import { useNavigation } from '@react-navigation/native'
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack'
 import { useAuth } from '../auth/AuthContext'
@@ -17,6 +17,7 @@ export function AskAIScreen() {
   const { user, token, serverUrl } = useAuth(), admin = user?.role === 'admin'
   const config = useRemote<Row>(admin ? '/flow/ask/config' : null)
   const [question, setQuestion] = useState(''), [period, setPeriod] = useState('month'), [busy, setBusy] = useState(false), [answer, setAnswer] = useState<Row | null>(null), [error, setError] = useState(''), [connection, setConnection] = useState(''), [messages, setMessages] = useState<Row[]>([])
+  const [conversations, setConversations] = useState<Row[]>([]), [conversationId, setConversationId] = useState<number | null>(null)
   const [listening, setListening] = useState(false), [voiceEnabled, setVoiceEnabled] = useState(true)
   const pending = useRef(false)
   const run = async (mode: 'ask' | 'facts' | 'test', spokenPrompt?: string) => {
@@ -27,8 +28,9 @@ export function AskAIScreen() {
     if (mode !== 'test') setAnswer(null)
     if (mode === 'ask') { setMessages(current => [...current, { role: 'user', content: prompt }]); setQuestion('') }
     try {
-      const result = await request<Row>(serverUrl, mode === 'facts' ? `/flow/ask/context?period=${period}` : mode === 'test' ? '/flow/ask/test' : '/flow/ask', token, mode === 'facts' ? undefined : { method: 'POST', body: JSON.stringify(mode === 'test' ? {} : { question: prompt, period, history }) })
+      const result = await request<Row>(serverUrl, mode === 'facts' ? `/flow/ask/context?period=${period}` : mode === 'test' ? '/flow/ask/test' : '/flow/ask', token, mode === 'facts' ? undefined : { method: 'POST', body: JSON.stringify(mode === 'test' ? {} : { question: prompt, period, history, ...(conversationId ? { conversationId } : {}) }) })
       if (mode === 'test') setConnection(result.message); else { setAnswer(result); if (mode === 'ask') { setMessages(current => [...current, { role: 'assistant', content: result.message || 'Here is what I found.', evidence: result }]); if (voiceEnabled) void NativeModules.VyomVoice?.speak(result.facts?.map((fact: Row) => fact.text).join(' ') || result.message || '') } }
+      if (mode === 'ask' && result.conversationId) setConversationId(result.conversationId)
     } catch (err) { setError(err instanceof Error ? err.message : 'Could not answer this question.') }
     finally { pending.current = false; setBusy(false) }
   }
@@ -40,6 +42,25 @@ export function AskAIScreen() {
     const failure = events.addListener('VyomVoiceError', () => { setListening(false); setError('Vyom could not hear that. Check microphone permission and try again.') })
     return () => { result.remove(); failure.remove(); voice.stopListening(); voice.stopSpeaking() }
   }, [config.data?.enabled, period, messages, voiceEnabled])
+  useEffect(() => {
+    if (!admin) return
+    void request<Row[]>(serverUrl, '/flow/ask/conversations', token).then(rows => {
+      setConversations(rows)
+      if (rows[0]) { setConversationId(rows[0].id); setMessages(rows[0].messages || []); setPeriod(rows[0].period || 'month') }
+    }).catch(() => undefined)
+  }, [admin, serverUrl, token])
+  const newConversation = async () => {
+    try { const row = await request<Row>(serverUrl, '/flow/ask/conversations', token, { method: 'POST', body: JSON.stringify({ period }) }); setConversations(current => [row, ...current]); setConversationId(row.id); setMessages([]); setAnswer(null); setQuestion('') }
+    catch { setError('Could not start a new conversation.') }
+  }
+  const deleteConversation = async () => {
+    if (!conversationId) return
+    try {
+      await request(serverUrl, `/flow/ask/conversations/${conversationId}`, token, { method: 'DELETE' })
+      const remaining = conversations.filter(row => row.id !== conversationId)
+      setConversations(remaining); setConversationId(remaining[0]?.id || null); setMessages(remaining[0]?.messages || []); setAnswer(null)
+    } catch { setError('Could not delete this conversation.') }
+  }
   const listen = async () => {
     if (!NativeModules.VyomVoice) { setError('Voice mode is unavailable on this device.'); return }
     if (listening) { NativeModules.VyomVoice.stopListening(); setListening(false); return }
@@ -55,6 +76,7 @@ export function AskAIScreen() {
     <View style={{ alignItems: 'center', gap: 12, paddingVertical: 12 }}><View style={{ padding: 20, borderRadius: 25, backgroundColor: colors.softBlue }}><Icon name="sparkles-outline" size={36} color={colors.accent} /></View><Text style={s.title}>Vyom</Text><Text style={[s.caption, { textAlign: 'center' }]}>Your conversational workspace assistant, with verified sources.</Text></View>
     <LoadState loading={config.loading && !config.data} error={config.error} retry={config.refresh} />
     {config.data && !config.data.enabled && <Panel><Text style={[s.valueText, { color: colors.amber }]}>AI connection not configured</Text><Text style={s.caption}>The workspace server needs a model connection. You can still view verified facts below.</Text></Panel>}
+    <Panel><Text style={s.sectionTitle}>{conversations.find(row => row.id === conversationId)?.title || 'New conversation'}</Text><Text style={s.caption}>Vyom saves this conversation to your administrator account.</Text><View style={{ flexDirection: 'row', gap: 10 }}><View style={{ flex: 1 }}><Button secondary icon="add-outline" label="New" onPress={() => void newConversation()} /></View><View style={{ flex: 1 }}><Button secondary icon="trash-outline" label="Delete" disabled={!conversationId || busy} onPress={() => Alert.alert('Delete conversation?', 'This removes the saved Vyom conversation.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Delete', style: 'destructive', onPress: () => void deleteConversation() }])} /></View></View></Panel>
     <Chips value={period} onChange={value => { if (!busy) { setPeriod(value); setAnswer(null) } }} items={[{ id: 'month', label: 'This month' }, { id: 'last_month', label: 'Last month' }, { id: 'year', label: 'This year' }]} />
     {!!messages.length && <View style={{ gap: 10 }}>{messages.map((message, index) => <View key={index} style={{ alignSelf: message.role === 'user' ? 'flex-end' : 'stretch', maxWidth: '92%', borderRadius: 18, padding: 14, backgroundColor: message.role === 'user' ? colors.accent : '#fff', borderWidth: message.role === 'assistant' ? 1 : 0, borderColor: colors.border }}><Text style={[s.valueText, message.role === 'user' && { color: '#fff' }]}>{message.content}</Text>{message.evidence?.facts?.map((fact: Row) => <View key={fact.id} style={{ paddingTop: 12 }}><Text style={s.valueText}>{fact.text}</Text><SourceLink href={fact.source.href} label={fact.source.label} /></View>)}</View>)}</View>}
     <Panel><Text style={s.sectionTitle}>Message Vyom</Text><TextInput accessibilityLabel="Message Vyom" value={question} editable={!busy} onChangeText={setQuestion} maxLength={1000} multiline placeholder="What's happening in the workspace?" placeholderTextColor={colors.muted} style={{ minHeight: 100, color: colors.ink, fontSize: 16, textAlignVertical: 'top', lineHeight: 24 }} /><Button icon={listening ? 'mic-off-outline' : 'mic-outline'} label={listening ? 'Listening… tap to stop' : 'Speak to Vyom'} busy={false} disabled={busy || !config.data?.enabled} onPress={() => void listen()} /><Button secondary icon={voiceEnabled ? 'volume-high-outline' : 'volume-mute-outline'} label={voiceEnabled ? 'Voice responses on' : 'Voice responses off'} onPress={() => { NativeModules.VyomVoice?.stopSpeaking(); setVoiceEnabled(value => !value) }} /><Button icon="arrow-up" label="Ask Vyom" busy={busy} disabled={!config.data?.enabled || question.trim().length < 3} onPress={() => void run('ask')} /></Panel>

@@ -41,6 +41,32 @@ model User {
   updatedAt DateTime   @updatedAt
   auditLogs AuditLog[]
   deposits  Deposit[]
+  vyomConversations VyomConversation[]
+}
+
+model VyomConversation {
+  id        Int           @id @default(autoincrement())
+  userId    Int
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  period    String        @default("month")
+  messages  VyomMessage[]
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  @@index([userId, updatedAt])
+}
+
+model VyomMessage {
+  id             Int              @id @default(autoincrement())
+  conversationId Int
+  conversation   VyomConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  role           String
+  content        String           @db.Text
+  evidence       Json?
+  createdAt      DateTime         @default(now())
+
+  @@index([conversationId, createdAt])
 }
 
 model Deposit {
