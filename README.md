@@ -60,6 +60,8 @@ The release APK runs independently after installation; no cloud build account, Q
 
 Starting with Android 2.0.3, the app checks the Railway API at startup for a newer APK. Configure `ANDROID_LATEST_VERSION`, `ANDROID_LATEST_VERSION_CODE`, `ANDROID_APK_URL`, `ANDROID_UPDATE_NOTES`, and optionally `ANDROID_UPDATE_REQUIRED=true` on Railway. When a newer version is available, the app displays an update prompt that opens the published APK download.
 
+Vyom supports voice conversations for administrators. On Android, **Speak to Vyom** uses the device speech recognizer and reads verified answers through Android text-to-speech. On the web, the same controls use the browser speech-recognition and speech-synthesis services. Teinco-X sends the recognized text to its API; it does not upload or store a raw microphone recording. Microphone access is requested only when the administrator starts listening.
+
 ```bash
 cd mobile
 npm install

@@ -1,5 +1,5 @@
-import { useRef, useState } from 'react'
-import { KeyboardAvoidingView, Platform, Pressable, RefreshControl, ScrollView, Text, TextInput, View } from 'react-native'
+import { useEffect, useRef, useState } from 'react'
+import { KeyboardAvoidingView, NativeEventEmitter, NativeModules, PermissionsAndroid, Platform, Pressable, RefreshControl, ScrollView, Text, TextInput, View } from 'react-native'
 import { useNavigation } from '@react-navigation/native'
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack'
 import { useAuth } from '../auth/AuthContext'
@@ -17,27 +17,47 @@ export function AskAIScreen() {
   const { user, token, serverUrl } = useAuth(), admin = user?.role === 'admin'
   const config = useRemote<Row>(admin ? '/flow/ask/config' : null)
   const [question, setQuestion] = useState(''), [period, setPeriod] = useState('month'), [busy, setBusy] = useState(false), [answer, setAnswer] = useState<Row | null>(null), [error, setError] = useState(''), [connection, setConnection] = useState(''), [messages, setMessages] = useState<Row[]>([])
+  const [listening, setListening] = useState(false), [voiceEnabled, setVoiceEnabled] = useState(true)
   const pending = useRef(false)
-  if (!admin) return <Empty title="Admin access required" />
-  const run = async (mode: 'ask' | 'facts' | 'test') => {
-    if (pending.current || (mode === 'ask' && (!config.data?.enabled || question.trim().length < 3))) return
+  const run = async (mode: 'ask' | 'facts' | 'test', spokenPrompt?: string) => {
+    const prompt = (spokenPrompt ?? question).trim()
+    if (pending.current || (mode === 'ask' && (!config.data?.enabled || prompt.length < 3))) return
     pending.current = true; setBusy(true); setError('')
-    const prompt = question.trim(), history = messages.slice(-12).map(message => ({ role: message.role, content: message.content }))
+    const history = messages.slice(-12).map(message => ({ role: message.role, content: message.content }))
     if (mode !== 'test') setAnswer(null)
     if (mode === 'ask') { setMessages(current => [...current, { role: 'user', content: prompt }]); setQuestion('') }
     try {
       const result = await request<Row>(serverUrl, mode === 'facts' ? `/flow/ask/context?period=${period}` : mode === 'test' ? '/flow/ask/test' : '/flow/ask', token, mode === 'facts' ? undefined : { method: 'POST', body: JSON.stringify(mode === 'test' ? {} : { question: prompt, period, history }) })
-      if (mode === 'test') setConnection(result.message); else { setAnswer(result); if (mode === 'ask') setMessages(current => [...current, { role: 'assistant', content: result.message || 'Here is what I found.', evidence: result }]) }
+      if (mode === 'test') setConnection(result.message); else { setAnswer(result); if (mode === 'ask') { setMessages(current => [...current, { role: 'assistant', content: result.message || 'Here is what I found.', evidence: result }]); if (voiceEnabled) void NativeModules.VyomVoice?.speak(result.facts?.map((fact: Row) => fact.text).join(' ') || result.message || '') } }
     } catch (err) { setError(err instanceof Error ? err.message : 'Could not answer this question.') }
     finally { pending.current = false; setBusy(false) }
   }
+  useEffect(() => {
+    const voice = NativeModules.VyomVoice
+    if (!voice) return
+    const events = new NativeEventEmitter(voice)
+    const result = events.addListener('VyomVoiceResult', ({ value }: { value: string }) => { setListening(false); setQuestion(value); if (value.trim()) void run('ask', value) })
+    const failure = events.addListener('VyomVoiceError', () => { setListening(false); setError('Vyom could not hear that. Check microphone permission and try again.') })
+    return () => { result.remove(); failure.remove(); voice.stopListening(); voice.stopSpeaking() }
+  }, [config.data?.enabled, period, messages, voiceEnabled])
+  const listen = async () => {
+    if (!NativeModules.VyomVoice) { setError('Voice mode is unavailable on this device.'); return }
+    if (listening) { NativeModules.VyomVoice.stopListening(); setListening(false); return }
+    if (Platform.OS === 'android') {
+      const permission = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.RECORD_AUDIO, { title: 'Talk to Vyom', message: 'Teinco-X uses the microphone only while you speak to Vyom.', buttonPositive: 'Allow', buttonNegative: 'Cancel' })
+      if (permission !== PermissionsAndroid.RESULTS.GRANTED) { setError('Microphone permission is required to speak with Vyom.'); return }
+    }
+    setError(''); setListening(true)
+    try { await NativeModules.VyomVoice.startListening() } catch { setListening(false); setError('Voice recognition is unavailable on this device.') }
+  }
+  if (!admin) return <Empty title="Admin access required" />
   return <KeyboardAvoidingView style={s.page} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={95}><ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={s.content}>
     <View style={{ alignItems: 'center', gap: 12, paddingVertical: 12 }}><View style={{ padding: 20, borderRadius: 25, backgroundColor: colors.softBlue }}><Icon name="sparkles-outline" size={36} color={colors.accent} /></View><Text style={s.title}>Vyom</Text><Text style={[s.caption, { textAlign: 'center' }]}>Your conversational workspace assistant, with verified sources.</Text></View>
     <LoadState loading={config.loading && !config.data} error={config.error} retry={config.refresh} />
     {config.data && !config.data.enabled && <Panel><Text style={[s.valueText, { color: colors.amber }]}>AI connection not configured</Text><Text style={s.caption}>The workspace server needs a model connection. You can still view verified facts below.</Text></Panel>}
     <Chips value={period} onChange={value => { if (!busy) { setPeriod(value); setAnswer(null) } }} items={[{ id: 'month', label: 'This month' }, { id: 'last_month', label: 'Last month' }, { id: 'year', label: 'This year' }]} />
     {!!messages.length && <View style={{ gap: 10 }}>{messages.map((message, index) => <View key={index} style={{ alignSelf: message.role === 'user' ? 'flex-end' : 'stretch', maxWidth: '92%', borderRadius: 18, padding: 14, backgroundColor: message.role === 'user' ? colors.accent : '#fff', borderWidth: message.role === 'assistant' ? 1 : 0, borderColor: colors.border }}><Text style={[s.valueText, message.role === 'user' && { color: '#fff' }]}>{message.content}</Text>{message.evidence?.facts?.map((fact: Row) => <View key={fact.id} style={{ paddingTop: 12 }}><Text style={s.valueText}>{fact.text}</Text><SourceLink href={fact.source.href} label={fact.source.label} /></View>)}</View>)}</View>}
-    <Panel><Text style={s.sectionTitle}>Message Vyom</Text><TextInput accessibilityLabel="Message Vyom" value={question} editable={!busy} onChangeText={setQuestion} maxLength={1000} multiline placeholder="What's happening in the workspace?" placeholderTextColor={colors.muted} style={{ minHeight: 100, color: colors.ink, fontSize: 16, textAlignVertical: 'top', lineHeight: 24 }} /><Button icon="arrow-up" label="Ask Vyom" busy={busy} disabled={!config.data?.enabled || question.trim().length < 3} onPress={() => void run('ask')} /></Panel>
+    <Panel><Text style={s.sectionTitle}>Message Vyom</Text><TextInput accessibilityLabel="Message Vyom" value={question} editable={!busy} onChangeText={setQuestion} maxLength={1000} multiline placeholder="What's happening in the workspace?" placeholderTextColor={colors.muted} style={{ minHeight: 100, color: colors.ink, fontSize: 16, textAlignVertical: 'top', lineHeight: 24 }} /><Button icon={listening ? 'mic-off-outline' : 'mic-outline'} label={listening ? 'Listening… tap to stop' : 'Speak to Vyom'} busy={false} disabled={busy || !config.data?.enabled} onPress={() => void listen()} /><Button secondary icon={voiceEnabled ? 'volume-high-outline' : 'volume-mute-outline'} label={voiceEnabled ? 'Voice responses on' : 'Voice responses off'} onPress={() => { NativeModules.VyomVoice?.stopSpeaking(); setVoiceEnabled(value => !value) }} /><Button icon="arrow-up" label="Ask Vyom" busy={busy} disabled={!config.data?.enabled || question.trim().length < 3} onPress={() => void run('ask')} /></Panel>
     <Text style={s.caption}>Try a question</Text><View style={{ gap: 8 }}>{["What's happening in the workspace?", 'What needs my attention today?', 'Are any tasks blocked?', 'What meetings are coming up?', 'How much have we spent?'].map(example => <Pressable accessibilityRole="button" key={example} disabled={busy} onPress={() => setQuestion(example)} style={{ borderRadius: 14, borderWidth: 1, borderColor: colors.border, backgroundColor: '#fff', padding: 14 }}><Text style={s.valueText}>{example}</Text></Pressable>)}</View>
     <Button secondary icon="document-text-outline" label="View available facts" disabled={busy} onPress={() => void run('facts')} />
     {!!error && <Text accessibilityRole="alert" style={s.errorText}>{error}</Text>}
