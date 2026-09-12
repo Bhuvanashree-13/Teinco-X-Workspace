@@ -32,7 +32,7 @@ export default function Sidebar({ className = '', onNavigate }: SidebarProps) {
     : navItems.filter(item => ['/', '/subscriptions', '/projects', '/people', '/payslips', '/schedule'].includes(item.to))
 
   return (
-    <aside className={`w-[272px] max-w-[86vw] bg-gradient-to-b from-[#315CF3] via-[#294FD9] to-[#182E85] text-white flex flex-col shrink-0 shadow-[8px_0_30px_rgba(30,58,138,0.15)] ${className}`}>
+    <aside className={`workspace-sidebar w-[272px] max-w-[86vw] text-white flex flex-col shrink-0 ${className}`}>
       <div className="px-5 py-5 border-b border-white/10">
         <div className="flex min-h-8 items-center min-w-[140px]">
           <img src="/teinco-logo.png" alt="Teinco.ai" className="h-10 w-auto rounded bg-white px-2 py-1 object-contain" />

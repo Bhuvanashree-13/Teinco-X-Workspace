@@ -34,6 +34,10 @@
     --teinco-cloud: #F7F8FC;
     --teinco-growth: #12B76A;
     --teinco-shadow: 0 8px 28px rgba(49, 92, 243, 0.08);
+    --teinco-surface: #ffffff;
+    --teinco-surface-soft: #f2f5ff;
+    --teinco-line: #dce4fa;
+    --teinco-header: rgba(255, 255, 255, 0.88);
   }
 
   .dark {
@@ -56,6 +60,10 @@
     --border: 217.2 32.6% 17.5%;
     --input: 217.2 32.6% 17.5%;
     --ring: 224.3 76.3% 48%;
+    --teinco-surface: #111d3b;
+    --teinco-surface-soft: #0b1732;
+    --teinco-line: #2b3d67;
+    --teinco-header: rgba(10, 21, 48, 0.9);
   }
 }
 
@@ -108,6 +116,83 @@
   .mobile-form-actions > button { @apply flex w-full items-center justify-center sm:w-auto; }
   .mobile-tab-strip { @apply -mx-4 flex gap-2 overflow-x-auto border-b border-slate-200 px-4 dark:border-gray-700 sm:mx-0 sm:px-0; }
   .mobile-tab-strip > button { @apply shrink-0; }
+
+  .workspace-shell {
+    color: #101828;
+    background:
+      radial-gradient(circle at 12% 0%, rgba(71, 112, 255, 0.15), transparent 31rem),
+      radial-gradient(circle at 92% 8%, rgba(139, 92, 246, 0.11), transparent 26rem),
+      linear-gradient(145deg, #f8faff 0%, #f1f4ff 58%, #f7f3ff 100%);
+  }
+  .workspace-header {
+    border-color: var(--teinco-line);
+    background: var(--teinco-header);
+    box-shadow: 0 8px 30px rgba(25, 49, 116, 0.06);
+  }
+  .workspace-sidebar {
+    background:
+      radial-gradient(circle at 15% 4%, rgba(79, 117, 255, 0.55), transparent 35%),
+      radial-gradient(circle at 100% 45%, rgba(139, 92, 246, 0.35), transparent 43%),
+      linear-gradient(180deg, #122c72 0%, #0b1735 55%, #201545 100%);
+    box-shadow: 10px 0 36px rgba(8, 19, 48, 0.2);
+  }
+  .workspace-shell .brand-card,
+  .workspace-shell .finance-stat-card,
+  .workspace-shell .mobile-dialog-panel {
+    border-color: var(--teinco-line);
+    background-color: var(--teinco-surface);
+    box-shadow: 0 14px 38px rgba(30, 58, 138, 0.09);
+  }
+  .workspace-shell .brand-primary-button {
+    background: linear-gradient(135deg, #4770ff 0%, #6558ee 70%, #7648dd 100%);
+    box-shadow: 0 10px 24px rgba(71, 112, 255, 0.28);
+  }
+  .workspace-shell .brand-secondary-button {
+    border-color: var(--teinco-line);
+    background: var(--teinco-surface);
+  }
+  .workspace-shell input,
+  .workspace-shell select,
+  .workspace-shell textarea {
+    border-color: var(--teinco-line);
+  }
+  .workspace-shell input:focus,
+  .workspace-shell select:focus,
+  .workspace-shell textarea:focus {
+    border-color: #6e8bff;
+    box-shadow: 0 0 0 3px rgba(110, 139, 255, 0.14);
+  }
+  .dark .workspace-shell {
+    color: #eef4ff;
+    background:
+      radial-gradient(circle at 8% 0%, rgba(48, 84, 190, 0.38), transparent 34rem),
+      radial-gradient(circle at 94% 8%, rgba(111, 52, 150, 0.27), transparent 30rem),
+      radial-gradient(circle at 72% 82%, rgba(20, 140, 166, 0.12), transparent 28rem),
+      #071127;
+  }
+  .dark .workspace-shell [class*="dark:bg-gray-800"],
+  .dark .workspace-shell [class~="bg-white"] { background-color: #111d3b !important; }
+  .dark .workspace-shell [class*="dark:bg-gray-900"],
+  .dark .workspace-shell [class~="bg-slate-50"],
+  .dark .workspace-shell [class~="bg-slate-100"] { background-color: #0b1732 !important; }
+  .dark .workspace-shell [class*="dark:border-gray-700"],
+  .dark .workspace-shell [class*="dark:border-gray-600"],
+  .dark .workspace-shell [class~="border-slate-200"] { border-color: #2b3d67 !important; }
+  .dark .workspace-shell [class*="dark:text-white"] { color: #f7f9ff !important; }
+  .dark .workspace-shell [class*="dark:text-slate-300"],
+  .dark .workspace-shell [class*="dark:text-slate-400"] { color: #aebddd !important; }
+  .dark .workspace-shell .brand-heading,
+  .dark .workspace-shell .brand-section-heading { color: #f7f9ff; }
+  .dark .workspace-shell .brand-caption,
+  .dark .workspace-shell .brand-label { color: #9fb0d2; }
+  .dark .workspace-shell input,
+  .dark .workspace-shell select,
+  .dark .workspace-shell textarea {
+    color: #f7f9ff;
+    background-color: #0b1732;
+  }
+  .dark .workspace-shell table thead { color: #9fb0d2; }
+  .dark .workspace-shell table tbody tr { border-color: #25365e; }
 }
 
 @layer utilities {
