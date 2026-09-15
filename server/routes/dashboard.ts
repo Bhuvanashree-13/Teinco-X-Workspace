@@ -126,6 +126,12 @@ router.get('/kpi', async (req, res) => {
       orderBy: { nextDueDate: 'asc' },
       take: 10
     })
+    const activeProjects = await prisma.project.findMany({
+      where: { status: 'active' },
+      orderBy: { updatedAt: 'desc' },
+      take: 6,
+      include: { workItems: { where: { status: { not: 'done' } }, orderBy: { updatedAt: 'desc' }, take: 4, select: { id: true, key: true, summary: true, status: true, priority: true, assignee: { select: { name: true } } } }, _count: { select: { workItems: true } } },
+    })
 
     // Monthly trend
     const monthlyTrend: Record<string, number> = {}
@@ -164,6 +170,7 @@ router.get('/kpi', async (req, res) => {
         amount: Number(e.baseCurrencyAmount),
         dueDate: e.nextDueDate
       })),
+      activeProjects,
       monthlyTrend: Object.entries(monthlyTrend).map(([month, amount]) => ({ month, amount })),
       totalExpenses: allExpenses.filter(expense => expense.expenseDate >= currentYearStart).length,
       asOf: now.toISOString(),

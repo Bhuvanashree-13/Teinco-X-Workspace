@@ -26,6 +26,7 @@ interface DashboardData {
   totalDeposits: number
   depositCount: number
   availableBalance: number
+  activeProjects: Array<{ id: number; name: string; code: string; _count: { workItems: number }; workItems: Array<{ id: number; key: string; summary: string; status: string; assignee?: { name: string } }> }>
 }
 
 interface EmployeeDashboardData {
@@ -196,6 +197,7 @@ export default function Dashboard() {
         <button type="button" onClick={() => void refetch()} className="rounded-lg border border-slate-200 px-3 py-2 text-xs text-slate-600 dark:border-gray-700 dark:text-slate-300">Refresh · updated {new Date(data.asOf).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</button>
       </div>
 
+      <div className="brand-card p-5 dark:border-gray-700 dark:bg-gray-800"><div className="mb-3 flex items-center justify-between"><h3 className="brand-section-heading">Active projects & tasks</h3><button type="button" onClick={() => navigate('/projects')} className="text-sm text-blue-700">Open taskboard</button></div>{data.activeProjects.map(project => <div key={project.id} className="mb-3 rounded-lg border p-3"><div className="flex justify-between"><strong>{project.name}</strong><button type="button" onClick={() => navigate('/projects')} className="text-xs text-blue-700">Add task</button></div>{project.workItems.map(task => <p key={task.id} className="mt-1 text-sm text-slate-600">• {task.summary}</p>)}{!project.workItems.length && <p className="mt-1 text-sm text-slate-500">No open tasks</p>}</div>)}</div>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
         {kpiCards.map((card, i) => (
           <div key={i} className="brand-card group p-4 hover:-translate-y-0.5 hover:shadow-md dark:border-gray-700 dark:bg-gray-800" style={{ borderTop: `3px solid ${card.accent}` }}>
