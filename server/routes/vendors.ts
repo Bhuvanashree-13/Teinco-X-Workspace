@@ -1,7 +1,10 @@
 import { Router } from 'express'
 import { prisma } from '../db.js'
+import { isAdmin, requireAdmin, requireAuth } from '../middleware/auth.js'
 
 const router = Router()
+
+router.use(requireAuth)
 
 router.get('/', async (req, res) => {
   try {
@@ -23,7 +26,7 @@ router.get('/', async (req, res) => {
         _count: { select: { expenses: true, subscriptions: true } }
       }
     })
-    res.json(vendors)
+    res.json(isAdmin(req) ? vendors : vendors.map(({ _count, ...vendor }) => vendor))
   } catch (error) {
     res.status(500).json({ error: 'Failed to load vendors' })
   }
@@ -31,9 +34,10 @@ router.get('/', async (req, res) => {
 
 router.get('/:id', async (req, res) => {
   try {
+    const admin = isAdmin(req)
     const vendor = await prisma.vendor.findUnique({
       where: { id: Number(req.params.id) },
-      include: {
+      include: admin ? {
         expenses: {
           where: { status: 'active' },
           orderBy: { expenseDate: 'desc' },
@@ -44,9 +48,11 @@ router.get('/:id', async (req, res) => {
           where: { status: 'active' },
           orderBy: { nextBillingDate: 'asc' }
         }
-      }
+      } : undefined
     })
     if (!vendor) return res.status(404).json({ error: 'Vendor not found' })
+
+    if (!admin) return res.json(vendor)
 
     // Calculate spend stats
     const currentYear = new Date().getFullYear()
@@ -76,7 +82,7 @@ router.get('/:id', async (req, res) => {
   }
 })
 
-router.post('/', async (req, res) => {
+router.post('/', requireAdmin, async (req, res) => {
   try {
     const name = String(req.body.name || '').trim()
     if (!name) return res.status(400).json({ error: 'Vendor name is required' })
@@ -109,7 +115,7 @@ router.post('/', async (req, res) => {
   }
 })
 
-router.put('/:id', async (req, res) => {
+router.put('/:id', requireAdmin, async (req, res) => {
   try {
     const vendor = await prisma.vendor.update({
       where: { id: Number(req.params.id) },
@@ -121,7 +127,7 @@ router.put('/:id', async (req, res) => {
   }
 })
 
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', requireAdmin, async (req, res) => {
   try {
     await prisma.vendor.update({
       where: { id: Number(req.params.id) },

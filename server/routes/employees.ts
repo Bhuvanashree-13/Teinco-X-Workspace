@@ -249,7 +249,8 @@ router.get('/summary', async (req: AuthedRequest, res) => {
       const today = new Date()
       const todayStart = startOfDay(today)
       const todayEnd = endOfDay(today)
-      const [employee, attendanceToday, pendingLeave] = await Promise.all([
+      const cycle = leaveCycle(today)
+      const [employee, attendanceToday, pendingLeave, approvedLeave, payslipCount, vendorCount] = await Promise.all([
         prisma.employee.findUnique({ where: { id: employeeId } }),
         prisma.attendanceLog.groupBy({
           by: ['status'],
@@ -257,7 +258,13 @@ router.get('/summary', async (req: AuthedRequest, res) => {
           _count: true,
         }),
         prisma.leaveRequest.count({ where: { employeeId, status: 'pending' } }),
+        prisma.leaveRequest.aggregate({ where: { employeeId, status: 'approved', leaveType: 'paid_time_off', startDate: { gte: cycle.start, lte: cycle.end } }, _sum: { days: true } }),
+        prisma.payrollBatchEmployee.count({ where: { employeeId } }),
+        prisma.vendor.count({ where: { isActive: true } }),
       ])
+      const monthsInCycle = (today.getFullYear() - cycle.start.getFullYear()) * 12 + today.getMonth() - cycle.start.getMonth() + 1
+      const leaveAllowance = Math.max(monthsInCycle, 0) * MONTHLY_LEAVE_ALLOWANCE
+      const usedPtoDays = toNumber(approvedLeave._sum.days)
 
       return res.json({
         headcount: employee ? 1 : 0,
@@ -266,7 +273,12 @@ router.get('/summary', async (req: AuthedRequest, res) => {
         monthlyPeopleCost: 0,
         annualPeopleCost: 0,
         pendingLeave,
-        usedPtoDays: 0,
+        usedPtoDays,
+        leaveAllowance,
+        leaveBalance: Math.max(leaveAllowance - usedPtoDays, 0),
+        leaveCycleLabel: cycle.label,
+        payslipCount,
+        vendorCount,
         attendanceToday: attendanceToday.map(item => ({ status: item.status, count: item._count })),
         openLifecycleTasks: 0,
         latestPayrollBatch: null,
