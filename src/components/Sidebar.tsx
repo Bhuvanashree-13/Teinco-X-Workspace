@@ -29,7 +29,7 @@ export default function Sidebar({ className = '', onNavigate }: SidebarProps) {
   const { role, isAdmin } = useRole()
   const visibleNavItems = isAdmin
     ? navItems
-    : navItems.filter(item => ['/', '/subscriptions', '/projects', '/people', '/payslips', '/schedule'].includes(item.to))
+    : navItems.filter(item => ['/', '/vendors', '/subscriptions', '/projects', '/people', '/payslips', '/schedule'].includes(item.to))
 
   return (
     <aside className={`workspace-sidebar w-[272px] max-w-[86vw] text-white flex flex-col shrink-0 ${className}`}>

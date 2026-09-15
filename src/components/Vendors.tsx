@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { apiPost, apiPut, useApi } from '../hooks/useApi'
 import { Search, Plus, Store, TrendingUp, Receipt, X, Pencil } from 'lucide-react'
 import { CardGridSkeleton } from './Skeleton'
+import { useRole } from '../context/RoleContext'
 
 const emptyVendorForm = {
   name: '',
@@ -20,6 +21,7 @@ const emptyVendorForm = {
 }
 
 export default function Vendors() {
+  const { isAdmin } = useRole()
   const [search, setSearch] = useState('')
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState(emptyVendorForm)
@@ -88,13 +90,13 @@ export default function Vendors() {
       <div className="mobile-page-header">
         <div>
           <h2 className="brand-heading">Vendors</h2>
-          <p className="brand-caption mt-1">Track vendor relationships and spending</p>
+          <p className="brand-caption mt-1">{isAdmin ? 'Track vendor relationships and spending' : 'Browse your company vendor directory'}</p>
         </div>
-        <div className="mobile-action-stack">
+        {isAdmin && <div className="mobile-action-stack">
         <button type="button" onClick={() => openForm()} className="brand-primary-button">
           <Plus className="w-4 h-4" /> Add Vendor
         </button>
-        </div>
+        </div>}
       </div>
 
       {message && <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">{message}</div>}
@@ -133,7 +135,7 @@ export default function Vendors() {
                 </span>
               </div>
 
-              <div className="mt-4 grid grid-cols-2 gap-3">
+              {isAdmin && <div className="mt-4 grid grid-cols-2 gap-3">
                 <div className="p-3 bg-gray-50 dark:bg-gray-700/30 rounded-lg">
                   <div className="flex items-center gap-1.5 text-xs text-gray-500 mb-1">
                     <Receipt className="w-3 h-3" /> Transactions
@@ -146,11 +148,11 @@ export default function Vendors() {
                   </div>
                   <p className="font-semibold text-gray-900 dark:text-white">{vendor._count?.subscriptions || 0}</p>
                 </div>
-              </div>
+              </div>}
 
               <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700 flex items-center justify-between">
                 <span className="text-xs text-gray-500">{vendor.type}</span>
-                <button type="button" onClick={() => openForm(vendor)} aria-label={`Edit ${vendor.name}`} className="inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm dark:border-gray-600 dark:text-white"><Pencil className="h-4 w-4" /> Edit</button>
+                {isAdmin ? <button type="button" onClick={() => openForm(vendor)} aria-label={`Edit ${vendor.name}`} className="inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm dark:border-gray-600 dark:text-white"><Pencil className="h-4 w-4" /> Edit</button> : <span className="text-xs text-slate-500">{vendor.city || vendor.state || 'Vendor directory'}</span>}
               </div>
             </div>
           ))}

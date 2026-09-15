@@ -1,8 +1,10 @@
 import { useState } from 'react'
 import { useApi, formatCurrency } from '../hooks/useApi'
-import { TrendingUp, TrendingDown, Wallet, CreditCard, Users, Server, Monitor, ArrowUpRight, Activity, Zap, HardDrive, Landmark, ArrowDownToLine } from 'lucide-react'
+import { TrendingUp, TrendingDown, Wallet, CreditCard, Users, Server, Monitor, ArrowUpRight, Activity, Zap, HardDrive, Landmark, ArrowDownToLine, FileText, Store, CalendarDays } from 'lucide-react'
 import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Cell } from 'recharts'
 import { StatCardsSkeleton, ChartSkeleton, Skeleton } from './Skeleton'
+import { useRole } from '../context/RoleContext'
+import { useNavigate } from 'react-router-dom'
 
 interface DashboardData {
   asOf: string
@@ -26,10 +28,35 @@ interface DashboardData {
   availableBalance: number
 }
 
+interface EmployeeDashboardData {
+  pendingLeave: number
+  leaveBalance: number
+  leaveAllowance: number
+  leaveCycleLabel: string
+  payslipCount: number
+  vendorCount: number
+  onLeaveCount: number
+}
+
+function EmployeeDashboard({ data, onOpen }: { data: EmployeeDashboardData; onOpen: (path: string) => void }) {
+  const cards = [
+    { label: 'Leave available', value: `${data.leaveBalance || 0} days`, icon: CalendarDays, path: '/people' },
+    { label: 'Leave requests', value: `${data.pendingLeave || 0} pending`, icon: Users, path: '/people' },
+    { label: 'Payslips', value: String(data.payslipCount || 0), icon: FileTextIcon, path: '/payslips' },
+    { label: 'Vendors', value: String(data.vendorCount || 0), icon: StoreIcon, path: '/vendors' },
+  ]
+  return <div className="space-y-6"><div className="rounded-3xl bg-[#1B174C] p-7 text-white shadow-lg"><p className="text-xs font-semibold tracking-[.14em] text-indigo-200">YOUR WORKDAY</p><h2 className="mt-2 text-3xl font-semibold">{data.onLeaveCount ? 'On leave today' : 'Ready for today'}</h2><p className="mt-2 text-sm text-indigo-200">{data.leaveCycleLabel || 'Attendance, leave and payslips in one place'}</p></div><div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">{cards.map(card => <button type="button" key={card.label} onClick={() => onOpen(card.path)} className="brand-card p-5 text-left transition hover:-translate-y-0.5 hover:shadow-md dark:border-gray-700 dark:bg-gray-800"><card.icon className="h-5 w-5 text-[#315CF3]" /><p className="mt-4 text-2xl font-semibold text-slate-900 dark:text-white">{card.value}</p><p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{card.label}</p></button>)}</div></div>
+}
+
+const FileTextIcon = FileText
+const StoreIcon = Store
+
 export default function Dashboard() {
+  const { isAdmin } = useRole()
+  const navigate = useNavigate()
   const [trendMonths, setTrendMonths] = useState(6)
   const [showAllCategories, setShowAllCategories] = useState(false)
-  const { data, loading, error, refetch } = useApi<DashboardData>('/dashboard/kpi')
+  const { data, loading, error, refetch } = useApi<DashboardData>(isAdmin ? '/dashboard/kpi' : '/employees/summary')
 
   if (loading) return (
     <div className="space-y-6">
@@ -50,8 +77,11 @@ export default function Dashboard() {
     </div>
   )
   if (!data || error) return <div role="alert" className="p-8 text-red-600 dark:text-red-300">Failed to load dashboard data. <button type="button" onClick={() => void refetch()} className="underline">Try again</button></div>
+  if (!isAdmin) return <EmployeeDashboard data={data as unknown as EmployeeDashboardData} onOpen={navigate} />
 
-  const trend = data.monthlyTrend.slice(-trendMonths)
+  const adminData = data as DashboardData
+
+  const trend = adminData.monthlyTrend.slice(-trendMonths)
   const trendTotal = trend.reduce((total, month) => total + month.amount, 0)
   const categories = data.categoryBreakdown.filter(category => category.amount !== 0)
   const categoryTotal = categories.reduce((total, category) => total + category.amount, 0)

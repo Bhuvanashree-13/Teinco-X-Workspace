@@ -6,7 +6,7 @@ import { LogOut, Menu, Moon, Search, ShieldCheck, Sun, UserRound, X } from 'luci
 import { useRole } from '../context/RoleContext'
 import { useTheme } from '../hooks/useTheme'
 
-const adminOnlyPaths = ['/expenses', '/vendors', '/analytics', '/flow', '/settings']
+const adminOnlyPaths = ['/expenses', '/analytics', '/flow', '/settings']
 
 export default function Layout() {
   const location = useLocation()

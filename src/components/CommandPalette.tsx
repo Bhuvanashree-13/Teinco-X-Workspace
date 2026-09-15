@@ -45,7 +45,7 @@ const navItems = [
   { to: '/settings', icon: Settings, label: 'Settings', keywords: 'preferences configuration' },
 ]
 
-const employeeOnly = ['/', '/subscriptions', '/projects', '/people', '/payslips', '/schedule']
+const employeeOnly = ['/', '/vendors', '/subscriptions', '/projects', '/people', '/payslips', '/schedule']
 
 export default function CommandPalette({ open, onClose }: CommandPaletteProps) {
   const navigate = useNavigate()
