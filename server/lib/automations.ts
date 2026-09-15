@@ -30,6 +30,10 @@ const deliver = async (ruleId: number, deliveryKey: string, recipient: string, s
 }
 
 export async function runAutomations() {
+  // Railway deploys application code separately from database migrations. Keep this
+  // idempotent bootstrap so enabling SMTP cannot fail because its delivery ledger
+  // has not been created yet.
+  await prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS \`AutomationDelivery\` (\`id\` INT NOT NULL AUTO_INCREMENT, \`ruleId\` INT NOT NULL, \`deliveryKey\` VARCHAR(191) NOT NULL, \`recipient\` VARCHAR(191) NOT NULL, \`subject\` VARCHAR(191) NOT NULL, \`sentAt\` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3), UNIQUE INDEX \`AutomationDelivery_deliveryKey_key\`(\`deliveryKey\`), INDEX \`AutomationDelivery_ruleId_idx\`(\`ruleId\`), INDEX \`AutomationDelivery_sentAt_idx\`(\`sentAt\`), PRIMARY KEY (\`id\`))`)
   const [payslipRule, subscriptionRule] = await Promise.all([
     seedRule('Payslip email delivery', 'Payroll batch approved or paid', 'Email each employee a secure payslip download link.'),
     seedRule('Subscription due reminder', 'Subscription due in two days', 'Email all active admins with the due subscription details.'),
