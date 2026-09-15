@@ -4,12 +4,14 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import { useAuth } from '../auth/AuthContext'
 import { request } from '../api'
 import { useRemote } from '../hooks/useRemote'
-import { colors, currency, shortDate } from '../theme'
+import { useMobileTheme, colors, currency, shortDate } from '../theme'
 import { allowedModule, canWrite, dateKey, human, moduleById, recordAmount, recordDate, recordTitle, type Row } from './domain'
 import { Button, Empty, Icon, LoadState, Panel, RowValue, Tag, s } from './Ui'
 import { NativeField } from './Fields'
 import type { RootStack } from './navigation'
 export function DetailScreen({ route, navigation }: NativeStackScreenProps<RootStack, 'Detail'>) {
+  useMobileTheme()
+
   const module = moduleById(route.params.module), { user, token, serverUrl } = useAuth(), role = user?.role || 'employee'
   const readPath = module.detail ? `${module.endpoint}/${route.params.row.id}` : `${module.endpoint}${module.id === 'attendance' ? `?date=${dateKey(new Date(route.params.row.workDate))}` : module.id === 'events' ? `?startDate=${encodeURIComponent(route.params.row.startsAt)}&endDate=${encodeURIComponent(route.params.row.endsAt)}` : ''}`
   const remote = useRemote<any>(allowedModule(module.id, role) ? readPath : null)

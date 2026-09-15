@@ -20,14 +20,20 @@ import type { RootStack } from './src/native/navigation'
 import { AppUpdatePrompt } from './src/updates'
 const Tabs = createBottomTabNavigator()
 const Stack = createNativeStackNavigator<RootStack>()
-function FinanceScreen() { return <GroupScreen group="finance" /> }
-function PeopleScreen() { return <GroupScreen group="people" /> }
+function FinanceScreen() {
+  useMobileTheme()
+ return <GroupScreen group="finance" /> }
+function PeopleScreen() {
+  useMobileTheme()
+ return <GroupScreen group="people" /> }
 function MainTabs() {
+  useMobileTheme()
+
   const insets = useSafeAreaInsets()
   const { user } = useAuth()
   return <SafeAreaView edges={['top', 'left', 'right']} style={{ flex: 1, backgroundColor: colors.background }}><Tabs.Navigator screenOptions={({ route }) => ({
     headerShown: false, tabBarActiveTintColor: colors.accent, tabBarInactiveTintColor: colors.muted,
-    tabBarStyle: { borderTopColor: colors.border, height: 68 + insets.bottom, paddingTop: 6, paddingBottom: Math.max(insets.bottom, 8) }, tabBarItemStyle: { paddingVertical: 2 }, tabBarLabelPosition: 'below-icon', tabBarLabelStyle: { fontSize: 11, lineHeight: 16, marginTop: 3, fontWeight: '600', fontFamily: 'sans-serif' }, tabBarIconStyle: { height: 26 },
+    tabBarStyle: { backgroundColor: colors.surface, borderTopColor: colors.border, height: 68 + insets.bottom, paddingTop: 6, paddingBottom: Math.max(insets.bottom, 8) }, tabBarItemStyle: { paddingVertical: 2 }, tabBarLabelPosition: 'below-icon', tabBarLabelStyle: { fontSize: 11, lineHeight: 16, marginTop: 3, fontWeight: '600',  }, tabBarIconStyle: { height: 26 },
     tabBarIcon: ({ color, size, focused }) => <Icon color={color} size={24} name={({ Home: focused ? 'home' : 'home-outline', Finance: focused ? 'wallet' : 'wallet-outline', People: focused ? 'people' : 'people-outline', Schedule: focused ? 'calendar' : 'calendar-outline', More: focused ? 'grid' : 'grid-outline' } as Record<string, string>)[route.name]} />,
   })}>
     <Tabs.Screen name="Home" component={HomeScreen} />
@@ -43,7 +49,7 @@ function Shell() {
   const theme = { ...DefaultTheme, dark: themeMode === 'dark', colors: { ...DefaultTheme.colors, background: colors.background, primary: colors.primary, card: colors.surface, text: colors.ink, border: colors.border, notification: colors.violet } }
   if (restoring) return <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.background }}><ActivityIndicator color={colors.accent} size="large" /></View>
   if (!user) return <LoginScreen />
-  return <NavigationContainer theme={theme}><Stack.Navigator screenOptions={{ headerStyle: { backgroundColor: colors.background }, headerTintColor: colors.primary, headerShadowVisible: false, headerTitleStyle: { fontSize: 17, fontWeight: '700' }, contentStyle: { backgroundColor: colors.background } }}>
+  return <NavigationContainer theme={theme}><Stack.Navigator screenOptions={{ headerStyle: { backgroundColor: colors.background }, headerTintColor: colors.primary, headerShadowVisible: false, headerTitleStyle: { color: colors.ink, fontSize: 17, fontWeight: '700' }, contentStyle: { backgroundColor: colors.background } }}>
     <Stack.Screen name="Tabs" component={MainTabs} options={{ headerShown: false }} />
     <Stack.Screen name="Records" component={RecordsScreen} options={({ route }) => ({ title: moduleById(route.params.module).title })} />
     <Stack.Screen name="Detail" component={DetailScreen} options={({ route }) => ({ title: moduleById(route.params.module).singular })} />
@@ -55,5 +61,6 @@ function Shell() {
     <Stack.Screen name="Account" component={AccountScreen} options={{ title: 'Account' }} />
   </Stack.Navigator></NavigationContainer>
 }
-export default function App() { return <MobileThemeProvider><SafeAreaProvider><ThemedStatusBar/><AuthProvider><Shell /><AppUpdatePrompt /></AuthProvider></SafeAreaProvider></MobileThemeProvider> }
+export default function App() {
+ return <MobileThemeProvider><SafeAreaProvider><ThemedStatusBar/><AuthProvider><Shell /><AppUpdatePrompt /></AuthProvider></SafeAreaProvider></MobileThemeProvider> }
 function ThemedStatusBar() { const { theme } = useMobileTheme(); return <StatusBar barStyle={theme === 'dark' ? 'light-content' : 'dark-content'} backgroundColor={colors.statusBar} /> }

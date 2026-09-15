@@ -4,13 +4,15 @@ import { usePreventRemove } from '@react-navigation/native'
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import { useAuth } from '../auth/AuthContext'
 import { request } from '../api'
-import { currency } from '../theme'
+import { useMobileTheme, currency } from '../theme'
 import { allowedModule, canWrite, formPayload, initialValues, moduleById, type Row } from './domain'
 import { Button, Empty, Panel, s } from './Ui'
 import { NativeField } from './Fields'
 import type { RootStack } from './navigation'
 
 export function EditScreen({ route, navigation }: NativeStackScreenProps<RootStack, 'Edit'>) {
+  useMobileTheme()
+
   const module = moduleById(route.params.module), original = route.params.row
   const { user, token, serverUrl } = useAuth(), role = user?.role || 'employee'
   const [values, setValues] = useState<Row>(() => initialValues(module.fields, original))

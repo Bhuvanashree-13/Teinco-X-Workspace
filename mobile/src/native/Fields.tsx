@@ -4,11 +4,13 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import DateTimePicker, { DateTimePickerAndroid } from '@react-native-community/datetimepicker'
 import { launchImageLibrary } from 'react-native-image-picker'
 import { useRemote } from '../hooks/useRemote'
-import { colors, shortDate, themedStyles } from '../theme'
+import { useMobileTheme, colors, shortDate, themedStyles } from '../theme'
 import { dateKey, human, type Field, type Row } from './domain'
 import { Button, Empty, Icon, LoadState, Search, s } from './Ui'
 
 export function NativeField({ field, value, onChange, disabled, existingLabel }: { field: Field; value: any; onChange: (value: any) => void; disabled?: boolean; existingLabel?: string }) {
+  const { theme } = useMobileTheme()
+
   const [choosing, setChoosing] = useState(false), [query, setQuery] = useState(''), [iosMode, setIosMode] = useState<'date' | 'time' | null>(null)
   const remote = useRemote<Row[]>(field.lookup || null)
   const options = field.lookup ? (remote.data || []).map(row => ({ value: String(row.id), label: `${row.parent?.name ? `${row.parent.name} / ` : ''}${row.name}` })) : (field.choices || []).map(option => ({ value: option, label: human(option) }))
@@ -26,7 +28,7 @@ export function NativeField({ field, value, onChange, disabled, existingLabel }:
     if (!asset?.base64 || !asset.type || !['image/png', 'image/jpeg', 'image/webp'].includes(asset.type) || (asset.fileSize || 0) > 1_000_000) return
     onChange(`data:${asset.type};base64,${asset.base64}`)
   }
-  if (field.type === 'boolean') return <View style={styles.toggle}><Text style={styles.label}>{field.label}</Text><Switch accessibilityLabel={field.label} value={Boolean(value)} disabled={disabled} onValueChange={onChange} trackColor={{ true: colors.accent }} /></View>
+  if (field.type === 'boolean') return <View style={styles.toggle}><Text style={styles.label}>{field.label}</Text><Switch accessibilityLabel={field.label} value={Boolean(value)} disabled={disabled} onValueChange={onChange} trackColor={{ false: colors.border, true: colors.primary }} thumbColor={colors.ink} ios_backgroundColor={colors.border} /></View>
   if (field.type === 'image') return <View style={styles.field}><Text style={styles.label}>{field.label}</Text>{value ? <Image source={{ uri: String(value) }} style={{ width: 88, height: 88, borderRadius: 18 }} /> : null}<Button secondary disabled={disabled} label={value ? 'Change image' : 'Choose image'} onPress={() => void chooseImage()} />{value ? <Pressable onPress={() => onChange('')}><Text style={s.link}>Remove image</Text></Pressable> : null}<Text style={s.caption}>PNG, JPEG or WebP · maximum 1 MB</Text></View>
   return <View style={styles.field}>
     <Text style={styles.label}>{field.label}{field.required ? ' *' : ''}</Text>
@@ -45,8 +47,8 @@ export function NativeField({ field, value, onChange, disabled, existingLabel }:
       <View style={{ flexDirection: 'row', gap: 8 }}><Pressable accessibilityRole="button" disabled={disabled} onPress={() => showDate('date')} style={[styles.select, { flex: 1 }]}><Text style={styles.inputText}>{value ? shortDate(field.type === 'date' ? `${value}T12:00:00` : value) : 'Choose date'}</Text><Icon name="calendar-outline" size={19} /></Pressable>
         {field.type === 'datetime' && <Pressable accessibilityRole="button" disabled={disabled} onPress={() => showDate('time')} style={styles.select}><Text style={styles.inputText}>{value ? new Date(value).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Time'}</Text></Pressable>}</View>
       {!field.required && !!value && <Pressable onPress={() => onChange('')}><Text style={s.link}>Clear date</Text></Pressable>}
-      {iosMode && <DateTimePicker value={value ? new Date(field.type === 'date' ? `${value}T12:00:00` : value) : new Date()} mode={iosMode} onValueChange={(_event, date) => { setIosMode(null); onChange(field.type === 'date' ? dateKey(date) : date.toISOString()) }} onDismiss={() => setIosMode(null)} />}
-    </> : <TextInput accessibilityLabel={field.label} value={String(value ?? '')} editable={!disabled} onChangeText={onChange} placeholder={field.type === 'number' ? '0.00' : field.label} placeholderTextColor={colors.subtle} keyboardType={field.type === 'number' ? 'decimal-pad' : field.type === 'email' ? 'email-address' : 'default'} autoCapitalize={field.type === 'email' ? 'none' : 'sentences'} multiline={field.type === 'multiline'} style={[styles.input, field.type === 'multiline' && { minHeight: 100, textAlignVertical: 'top' }]} />}
+      {iosMode && <DateTimePicker themeVariant={theme} textColor={colors.ink} accentColor={colors.primary} value={value ? new Date(field.type === 'date' ? `${value}T12:00:00` : value) : new Date()} mode={iosMode} onValueChange={(_event, date) => { setIosMode(null); onChange(field.type === 'date' ? dateKey(date) : date.toISOString()) }} onDismiss={() => setIosMode(null)} />}
+    </> : <TextInput selectionColor={colors.primary} accessibilityLabel={field.label} value={String(value ?? '')} editable={!disabled} onChangeText={onChange} placeholder={field.type === 'number' ? '0.00' : field.label} placeholderTextColor={colors.subtle} keyboardType={field.type === 'number' ? 'decimal-pad' : field.type === 'email' ? 'email-address' : 'default'} autoCapitalize={field.type === 'email' ? 'none' : 'sentences'} multiline={field.type === 'multiline'} style={[styles.input, field.type === 'multiline' && { minHeight: 100, textAlignVertical: 'top' }]} />}
   </View>
 }
 const styles = themedStyles(() => ({ field: { gap: 8 }, label: { color: colors.ink, fontSize: 13, fontWeight: '700' }, input: { borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, borderRadius: 15, padding: 15, minHeight: 52, color: colors.ink, fontSize: 16 }, inputText: { color: colors.ink, fontSize: 14, flexShrink: 1 }, select: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10, borderWidth: 1, borderColor: colors.border, borderRadius: 15, padding: 15, minHeight: 52, backgroundColor: colors.surface }, toggle: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 52 }, option: { paddingVertical: 18, flexDirection: 'row', alignItems: 'center', gap: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border } }))
