@@ -17,7 +17,6 @@ import { SettingsScreen } from './src/native/SettingsScreen'
 import { Icon } from './src/native/Ui'
 import { moduleById } from './src/native/domain'
 import type { RootStack } from './src/native/navigation'
-import { AppUpdatePrompt } from './src/updates'
 const Tabs = createBottomTabNavigator()
 const Stack = createNativeStackNavigator<RootStack>()
 function FinanceScreen() {
@@ -62,5 +61,5 @@ function Shell() {
   </Stack.Navigator></NavigationContainer>
 }
 export default function App() {
- return <MobileThemeProvider><SafeAreaProvider><ThemedStatusBar/><AuthProvider><Shell /><AppUpdatePrompt /></AuthProvider></SafeAreaProvider></MobileThemeProvider> }
+ return <MobileThemeProvider><SafeAreaProvider><ThemedStatusBar/><AuthProvider><Shell /></AuthProvider></SafeAreaProvider></MobileThemeProvider> }
 function ThemedStatusBar() { const { theme } = useMobileTheme(); return <StatusBar barStyle={theme === 'dark' ? 'light-content' : 'dark-content'} backgroundColor={colors.statusBar} /> }
