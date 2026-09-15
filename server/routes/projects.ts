@@ -34,7 +34,7 @@ router.get('/issues', async (req, res) => {
 router.post('/issues', async (req: AuthedRequest, res) => {
   if (req.user?.role !== 'admin') return res.status(403).json({ error: 'Admin access required' })
   const parsed = issueSchema.safeParse(req.body)
-  if (!parsed.success) return res.status(400).json({ error: 'Enter a valid project, summary, workflow, priority, and estimate.' })
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.issues.map(issue => `${issue.path.join('.') || 'work item'}: ${issue.message}`).join(' ') })
   try {
     const project = await prisma.project.findUnique({ where: { id: parsed.data.projectId }, select: { code: true } })
     if (!project) return res.status(404).json({ error: 'Project not found' })
