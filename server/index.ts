@@ -238,6 +238,18 @@ app.get('/api/mobile/android/update', (req, res) => {
   })
 })
 
+app.get('/api/mobile/android/download', (_req, res) => {
+  const version = process.env.ANDROID_LATEST_VERSION || '2.0.17'
+  const downloadUrl = process.env.ANDROID_APK_URL || `https://github.com/Bhuvanashree-13/Teinco-X-Workspace/releases/download/v${version}/Teinco-X-${version}.apk`
+  try {
+    const target = new URL(downloadUrl)
+    if (!['https:', 'http:'].includes(target.protocol)) throw new Error('Unsupported URL protocol')
+    res.redirect(302, target.toString())
+  } catch {
+    res.status(503).json({ error: 'The latest Android download is not configured.' })
+  }
+})
+
 if (existsSync(path.join(clientDistPath, 'index.html'))) {
   app.use(express.static(clientDistPath))
   app.get('*', (req, res, next) => {
