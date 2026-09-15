@@ -55,6 +55,7 @@ export function directVerifiedAnswer(question: string, context: AskContext) {
   if (has(/\b(leave|leaves)\b/) && has(/\b(pending|waiting|review)\b/)) requested.push('leave-pending')
   if (has(/\battendance\b/) || (has(/\b(present|absent)\b/) && has(/\b(today|employee|employees|people|staff)\b/))) requested.push('attendance-today')
   if (has(/\btask|tasks|taskboard\b/) && has(/\b(blocked|stuck)\b/)) requested.push('tasks-blocked')
+  if (has(/\b(which|what|that)\b/) && has(/\btask\b/)) requested.push(...context.facts.filter(fact => fact.id.startsWith('task-blocked-')).map(fact => fact.id))
   else if (has(/\btask|tasks|taskboard\b/) && has(/\b(open|pending|active|how many)\b/)) requested.push('tasks-open')
   if (has(/\b(meeting|meetings|event|events|schedule)\b/) && has(/\b(upcoming|next|scheduled)\b/)) requested.push(...context.facts.filter(fact => fact.id.startsWith('event-')).slice(0, 5).map(fact => fact.id))
   if (has(/\b(milestone|milestones|deadline|deadlines)\b/)) requested.push('milestones-upcoming')

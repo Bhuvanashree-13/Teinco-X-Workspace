@@ -28,12 +28,13 @@ export async function retrieveAskContext(period: z.infer<typeof periodSchema>): 
     db.expense.findMany({ where, orderBy: [{ baseCurrencyAmount: 'desc' }, { id: 'asc' }], take: 10, select: { expenseId: true, baseCurrencyAmount: true, expenseDate: true } }),
   ]))
   const todayStart = startOfDay(now), todayEnd = endOfDay(now), upcomingEnd = addDays(now, 30)
-  const [activeEmployees, pendingLeave, attendanceToday, openTasks, blockedTasks, upcomingEvents, openMilestones, urgentInsights, activeSubscriptions] = await prisma.$transaction(async db => Promise.all([
+  const [activeEmployees, pendingLeave, attendanceToday, openTasks, blockedTasks, blockedWorkItems, upcomingEvents, openMilestones, urgentInsights, activeSubscriptions] = await prisma.$transaction(async db => Promise.all([
     db.employee.count({ where: { isArchived: false, status: { in: ['active', 'on_leave', 'contractor'] } } }),
     db.leaveRequest.count({ where: { status: 'pending' } }),
     db.attendanceLog.count({ where: { workDate: { gte: todayStart, lte: todayEnd } } }),
     db.workItem.count({ where: { status: { not: 'done' } } }),
     db.workItem.count({ where: { status: 'blocked' } }),
+    db.workItem.findMany({ where: { status: 'blocked' }, orderBy: { updatedAt: 'desc' }, take: 8, include: { project: { select: { name: true } }, assignee: { select: { name: true } } } }),
     db.scheduleEvent.findMany({ where: { status: 'scheduled', startsAt: { gte: now, lte: upcomingEnd } }, orderBy: { startsAt: 'asc' }, take: 5, select: { eventId: true, title: true, startsAt: true, participantsFrom: true, participantsTo: true, purpose: true } }),
     db.scheduleMilestone.count({ where: { status: 'open', dueAt: { gte: now, lte: upcomingEnd } } }),
     db.executiveInsight.count({ where: { status: 'open', severity: 'urgent' } }),
@@ -55,6 +56,7 @@ export async function retrieveAskContext(period: z.infer<typeof periodSchema>): 
     { id: 'insights-urgent', text: `${urgentInsights} urgent workspace insights are open.`, count: urgentInsights, source: { label: 'Flow insights', href: '/flow' } },
     { id: 'subscriptions-active', text: `${activeSubscriptions} subscriptions are active or in trial.`, count: activeSubscriptions, source: { label: 'Subscriptions', href: '/subscriptions' } },
   ]
+  for (const task of blockedWorkItems) facts.push({ id: `task-blocked-${task.id}`, text: `Blocked task: ${task.summary} in ${task.project.name}.${task.assignee?.name ? ` Assigned to ${task.assignee.name}.` : ''}`, source: { label: task.key, href: '/projects' } })
   for (const [index, event] of upcomingEvents.entries()) {
     const between = event.participantsFrom || event.participantsTo ? ` Between ${event.participantsFrom || 'unspecified'} and ${event.participantsTo || 'unspecified'}.` : ''
     const purpose = event.purpose ? ` Purpose: ${event.purpose.slice(0, 180)}.` : ''
