@@ -14,7 +14,7 @@ import vendorRoutes from './routes/vendors.js'
 import subscriptionRoutes from './routes/subscriptions.js'
 import categoryRoutes from './routes/categories.js'
 import projectRoutes from './routes/projects.js'
-import employeeRoutes from './routes/employees.js'
+import employeeRoutes, { publicEmployeeRoutes } from './routes/employees.js'
 import scheduleRoutes from './routes/schedule.js'
 import flowRoutes from './routes/flow.js'
 import assetRoutes from './routes/assets.js'
@@ -26,6 +26,7 @@ import importExportRoutes from './routes/import-export.js'
 import authRoutes from './routes/auth.js'
 import depositRoutes from './routes/deposits.js'
 import exchangeRateRoutes from './routes/exchange-rates.js'
+import { startAutomations } from './lib/automations.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -205,6 +206,7 @@ app.use('/api/vendors', vendorRoutes)
 app.use('/api/subscriptions', subscriptionRoutes)
 app.use('/api/categories', categoryRoutes)
 app.use('/api/projects', projectRoutes)
+app.use('/api/employees', publicEmployeeRoutes)
 app.use('/api/employees', employeeRoutes)
 app.use('/api/schedule', scheduleRoutes)
 app.use('/api/flow', flowRoutes)
@@ -284,6 +286,7 @@ async function startServer() {
   }
 
   await ensureStarterExpenseCategories()
+  startAutomations()
 
   const adminCount = await prisma.user.count({ where: { role: 'admin' } })
   const bootstrapAdminEmail = process.env.BOOTSTRAP_ADMIN_EMAIL?.trim().toLowerCase()

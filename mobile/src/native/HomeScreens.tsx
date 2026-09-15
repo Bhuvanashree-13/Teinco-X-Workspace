@@ -3,6 +3,7 @@ import { Alert, Linking, Pressable, RefreshControl, ScrollView, StyleSheet, Text
 import { useNavigation } from '@react-navigation/native'
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack'
 import { useAuth } from '../auth/AuthContext'
+import { request } from '../api'
 import { useRemote } from '../hooks/useRemote'
 import { themedStyles, colors, currency, shortDate, useMobileTheme } from '../theme'
 import { modules, dateKey, type Row } from './domain'
@@ -27,12 +28,21 @@ export function HomeScreen() {
       <Text style={h.heroNote}>{admin ? 'Received deposits less recorded expenses' : 'Attendance, leave and payslips in one place'}</Text>
       <View style={h.heroDivider} /><View style={h.heroStats}><View style={{ flex: 1 }}><Text style={h.heroLabel}>{admin ? 'THIS MONTH SPENDING' : 'ATTENDANCE TODAY'}</Text><Text style={h.heroStat}>{admin ? currency(data.currentMonthSpend) : `${data.attendanceToday?.reduce((sum: number, item: Row) => sum + item.count, 0) || 0} entries`}</Text></View><View style={{ flex: 1 }}><Text style={h.heroLabel}>{admin ? 'YEAR TO DATE' : 'LEAVE STATUS'}</Text><Text style={h.heroStat}>{admin ? currency(data.currentYearSpend) : data.onLeaveCount ? 'On leave' : 'Working'}</Text></View></View>
     </View>}
+    {!admin && <AttendanceClock />}
     <Section title="Quick actions" />
     <View style={h.tiles}>{admin ? <><Tile label="Add expense" icon="add-circle-outline" color={colors.danger} onPress={() => nav.navigate('Edit', { module: 'expenses' })} /><Tile label="Add deposit" icon="arrow-down-circle-outline" color={colors.success} onPress={() => nav.navigate('Edit', { module: 'deposits' })} /><Tile label="Analytics" icon="bar-chart-outline" color={colors.violet} onPress={() => nav.navigate('Analytics')} /><Tile label="Vyom" icon="sparkles-outline" color={colors.amber} onPress={() => nav.navigate('AskAI')} /></> : <><Tile label="Attendance" icon="finger-print-outline" color={colors.cyan} onPress={() => nav.navigate('Edit', { module: 'attendance' })} /><Tile label="Request leave" icon="leaf-outline" color={colors.success} onPress={() => nav.navigate('Edit', { module: 'leave' })} /><Tile label="Payslips" icon="document-text-outline" color={colors.violet} onPress={() => nav.navigate('Records', { module: 'payslips' })} /><Tile label="Leave balance" icon="pie-chart-outline" color={colors.amber} onPress={() => nav.navigate('Records', { module: 'balances' })} /></>}</View>
     {admin && <><Section title="Recent expenses" action="See all" onPress={() => nav.navigate('Records', { module: 'expenses' })} /><LoadState loading={recent.loading && !recent.data} error={recent.error} retry={recent.refresh} />{recent.data?.expenses?.length ? <Panel>{recent.data.expenses.map((row: Row) => <Pressable key={row.id} accessibilityRole="button" onPress={() => nav.navigate('Detail', { module: 'expenses', row })} style={h.transaction}><View style={h.transactionIcon}><Icon name="receipt-outline" size={21} /></View><View style={{ flex: 1 }}><Text numberOfLines={1} style={h.rowTitle}>{row.description}</Text><Text style={s.caption}>{row.category?.name} · {shortDate(row.expenseDate)}</Text></View><Text style={h.transactionAmount}>{currency(row.baseCurrencyAmount)}</Text></Pressable>)}</Panel> : !recent.loading && !recent.error && <Empty title="No expenses yet" message="Add an expense to start your ledger." />}
       <Section title="Coming up" />{data?.upcomingExpenses?.length ? <Panel>{data.upcomingExpenses.slice(0, 4).map((row: Row) => <View key={row.id} style={h.transaction}><Icon name="time-outline" color={colors.amber} /><View style={{ flex: 1 }}><Text style={h.rowTitle}>{row.description}</Text><Text style={s.caption}>{shortDate(row.dueDate)}</Text></View><Text style={h.transactionAmount}>{currency(row.amount)}</Text></View>)}</Panel> : data && <Panel><Text style={s.caption}>No upcoming commitments in the next 30 days.</Text></Panel>}
     </>}
   </ScrollView>
+}
+function AttendanceClock() {
+  const { token, serverUrl } = useAuth(), attendance = useRemote<Row[]>(`/employees/attendance?date=${dateKey()}`)
+  const [busy, setBusy] = useState(false), [error, setError] = useState(''), log = attendance.data?.[0]
+  const checkedIn = Boolean(log?.checkIn), checkedOut = Boolean(log?.checkOut)
+  const clock = async () => { if (busy || checkedOut) return; setBusy(true); setError(''); try { await request(serverUrl, '/employees/attendance/clock', token, { method: 'POST' }); await attendance.refresh() } catch (err) { setError(err instanceof Error ? err.message : 'Could not record attendance.') } finally { setBusy(false) } }
+  const time = (value?: string) => value ? new Date(value).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' }) : '—'
+  return <Panel><View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}><View style={h.transactionIcon}><Icon name="finger-print-outline" color={colors.cyan} /></View><View style={{ flex: 1 }}><Text style={s.sectionTitle}>Today’s attendance</Text><Text style={s.caption}>In {time(log?.checkIn)} · Out {time(log?.checkOut)}</Text></View></View><Button icon={checkedIn ? 'log-out-outline' : 'log-in-outline'} label={checkedOut ? 'Checked out' : checkedIn ? 'Check out now' : 'Check in now'} busy={busy} disabled={checkedOut || attendance.loading} onPress={() => void clock()} />{!!error && <Text accessibilityRole="alert" style={s.errorText}>{error}</Text>}</Panel>
 }
 export function GroupScreen({ group }: { group: 'finance' | 'people' }) {
   useMobileTheme()

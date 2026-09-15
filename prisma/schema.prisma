@@ -482,10 +482,24 @@ model FlowAutomationRule {
   notes         String?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
+  deliveries    AutomationDelivery[]
 
   @@index([status])
   @@index([triggerModule])
   @@index([priority])
+}
+
+model AutomationDelivery {
+  id          Int                @id @default(autoincrement())
+  ruleId      Int
+  rule        FlowAutomationRule @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+  deliveryKey String             @unique
+  recipient   String
+  subject     String
+  sentAt      DateTime           @default(now())
+
+  @@index([ruleId])
+  @@index([sentAt])
 }
 
 model ForecastScenario {

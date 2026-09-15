@@ -3,7 +3,9 @@ import { randomUUID } from 'node:crypto'
 import { endOfDay, endOfYear, format, startOfDay, startOfYear } from 'date-fns'
 import { prisma } from '../db.js'
 import { isAdmin, requireAdmin, requireAuth, type AuthedRequest } from '../middleware/auth.js'
+import { verifyPayslipDownloadToken } from '../lib/automations.js'
 
+export const publicEmployeeRoutes = Router()
 const router = Router()
 const PENDING_EMPLOYEE_PASSWORD_PREFIX = 'pending-employee-password:'
 
@@ -76,6 +78,22 @@ const serializePayslip = (line: any) => {
     netPay: toNumber(line.netPay),
   }
 }
+
+publicEmployeeRoutes.get('/payslips/:id/download', async (req, res) => {
+  try {
+    const id = Number(req.params.id), token = String(req.query.token || '')
+    if (!Number.isInteger(id) || !token || !verifyPayslipDownloadToken(token, id)) return res.status(401).send('This payslip download link is invalid or has expired.')
+    const line = await prisma.payrollBatchEmployee.findUnique({ where: { id }, include: { employee: true, payrollBatch: true } })
+    if (!line) return res.status(404).send('Payslip not found.')
+    const payslip = serializePayslip(line)
+    const body = [`TEINCO-X PAYSLIP`, `Slip: ${payslip.slipId}`, `Employee: ${payslip.employee.name}`, `Period: ${format(payslip.periodStart, 'dd MMM yyyy')} - ${format(payslip.periodEnd, 'dd MMM yyyy')}`, '', 'EARNINGS', ...payslip.earnings.map(item => `${item.label}: INR ${item.amount.toFixed(2)}`), '', 'DEDUCTIONS', ...payslip.deductions.map(item => `${item.label}: INR ${item.amount.toFixed(2)}`), '', `Net pay: INR ${payslip.netPay.toFixed(2)}`, `Payment reference: ${payslip.paymentUtr || 'Not entered'}`].join('\n')
+    res.setHeader('Content-Type', 'text/plain; charset=utf-8')
+    res.setHeader('Content-Disposition', `attachment; filename="${payslip.slipId}.txt"`)
+    res.send(body)
+  } catch {
+    res.status(401).send('This payslip download link is invalid or has expired.')
+  }
+})
 
 const calculatePayrollSnapshot = async (periodStart: Date, periodEnd: Date) => {
   const activeEmployees = await prisma.employee.findMany({
@@ -489,6 +507,30 @@ router.post('/attendance', async (req: AuthedRequest, res) => {
   }
 })
 
+router.post('/attendance/clock', async (req: AuthedRequest, res) => {
+  try {
+    const employeeId = requireLinkedEmployee(req, res)
+    if (!employeeId) return
+    const now = new Date(), workDate = startOfDay(now)
+    const existing = await prisma.attendanceLog.findUnique({ where: { employeeId_workDate: { employeeId, workDate } } })
+    if (!existing) {
+      const log = await prisma.attendanceLog.create({ data: { employeeId, workDate, checkIn: now, workMode: 'office', status: 'present' }, include: { employee: true } })
+      return res.status(201).json({ action: 'checked_in', log: serializeAttendance(log) })
+    }
+    if (existing.checkOut) return res.status(409).json({ error: 'You have already checked out for today.' })
+    if (!existing.checkIn) {
+      const log = await prisma.attendanceLog.update({ where: { id: existing.id }, data: { checkIn: now, status: 'present' }, include: { employee: true } })
+      return res.json({ action: 'checked_in', log: serializeAttendance(log) })
+    }
+    const regularHours = Math.round(((now.getTime() - existing.checkIn.getTime()) / 3600000) * 100) / 100
+    const log = await prisma.attendanceLog.update({ where: { id: existing.id }, data: { checkOut: now, regularHours, status: 'present' }, include: { employee: true } })
+    res.json({ action: 'checked_out', log: serializeAttendance(log) })
+  } catch (error) {
+    console.error('Attendance clock error:', error)
+    res.status(500).json({ error: 'Could not record your attendance time.' })
+  }
+})
+
 router.get('/notifications', requireAdmin, async (_req, res) => {
   try {
     const today = new Date()
@@ -597,6 +639,7 @@ router.get('/payslips', async (req: AuthedRequest, res) => {
     res.status(500).json({ error: 'Failed to load payslips' })
   }
 })
+
 
 router.put('/payslips/:id/payment-reference', async (req: AuthedRequest, res) => {
   try {
