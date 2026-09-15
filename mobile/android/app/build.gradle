@@ -82,8 +82,8 @@ android {
         applicationId "ai.teincox.finance"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 22
-        versionName "2.0.17"
+        versionCode 23
+        versionName "2.0.18"
     }
     signingConfigs {
         debug {

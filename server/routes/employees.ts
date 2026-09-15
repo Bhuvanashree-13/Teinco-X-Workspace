@@ -515,15 +515,18 @@ router.post('/attendance/clock', async (req: AuthedRequest, res) => {
     const existing = await prisma.attendanceLog.findUnique({ where: { employeeId_workDate: { employeeId, workDate } } })
     if (!existing) {
       const log = await prisma.attendanceLog.create({ data: { employeeId, workDate, checkIn: now, workMode: 'office', status: 'present' }, include: { employee: true } })
+      await prisma.auditLog.create({ data: { action: 'attendance_checked_in', entityType: 'attendance', entityId: String(log.id), userId: req.user?.userId, newValue: JSON.stringify({ employeeName: log.employee.name, occurredAt: now.toISOString() }) } })
       return res.status(201).json({ action: 'checked_in', log: serializeAttendance(log) })
     }
     if (existing.checkOut) return res.status(409).json({ error: 'You have already checked out for today.' })
     if (!existing.checkIn) {
       const log = await prisma.attendanceLog.update({ where: { id: existing.id }, data: { checkIn: now, status: 'present' }, include: { employee: true } })
+      await prisma.auditLog.create({ data: { action: 'attendance_checked_in', entityType: 'attendance', entityId: String(log.id), userId: req.user?.userId, newValue: JSON.stringify({ employeeName: log.employee.name, occurredAt: now.toISOString() }) } })
       return res.json({ action: 'checked_in', log: serializeAttendance(log) })
     }
     const regularHours = Math.round(((now.getTime() - existing.checkIn.getTime()) / 3600000) * 100) / 100
     const log = await prisma.attendanceLog.update({ where: { id: existing.id }, data: { checkOut: now, regularHours, status: 'present' }, include: { employee: true } })
+    await prisma.auditLog.create({ data: { action: 'attendance_checked_out', entityType: 'attendance', entityId: String(log.id), userId: req.user?.userId, newValue: JSON.stringify({ employeeName: log.employee.name, occurredAt: now.toISOString(), regularHours }) } })
     res.json({ action: 'checked_out', log: serializeAttendance(log) })
   } catch (error) {
     console.error('Attendance clock error:', error)
@@ -534,13 +537,20 @@ router.post('/attendance/clock', async (req: AuthedRequest, res) => {
 router.get('/notifications', requireAdmin, async (_req, res) => {
   try {
     const today = new Date()
-    const [pendingLeave, attendance, activeEmployees] = await Promise.all([
+    const [pendingLeave, attendance, activeEmployees, attendanceEvents] = await Promise.all([
       prisma.leaveRequest.findMany({ where: { status: 'pending' }, include: { employee: true }, orderBy: { createdAt: 'desc' }, take: 50 }),
       prisma.attendanceLog.findMany({ where: { workDate: { gte: startOfDay(today), lte: endOfDay(today) } }, include: { employee: true } }),
       prisma.employee.findMany({ where: { status: 'active' }, select: { id: true, name: true } }),
+      prisma.auditLog.findMany({ where: { entityType: 'attendance', action: { in: ['attendance_checked_in', 'attendance_checked_out'] } }, orderBy: { createdAt: 'desc' }, take: 50 }),
     ])
     const recorded = new Set(attendance.map(log => log.employeeId))
+    const clockNotifications = attendanceEvents.map(event => {
+      const details = (() => { try { return JSON.parse(event.newValue || '{}') } catch { return {} } })()
+      const checkedOut = event.action === 'attendance_checked_out'
+      return { id: `clock-${event.id}`, type: checkedOut ? 'attendance_checked_out' : 'attendance_checked_in', title: `${details.employeeName || 'Employee'} checked ${checkedOut ? 'out' : 'in'}`, message: checkedOut ? `${Number(details.regularHours || 0).toFixed(2)} hours recorded` : 'Attendance check-in recorded', status: 'new', occurredAt: event.createdAt, employeeName: details.employeeName || 'Employee' }
+    })
     const notifications = [
+      ...clockNotifications,
       ...pendingLeave.map(request => ({ id: `leave-${request.id}`, type: 'leave_request', title: `${request.employee.name} requested leave`, message: `${request.leaveType.replace(/_/g, ' ')} · ${toNumber(request.days)} days`, status: 'pending', occurredAt: request.createdAt, employeeName: request.employee.name })),
       ...attendance.filter(log => log.status !== 'present').map(log => ({ id: `attendance-${log.id}`, type: 'attendance', title: `${log.employee.name}: ${log.status.replace(/_/g, ' ')}`, message: `${log.workMode.replace(/_/g, ' ')} attendance recorded today`, status: log.status, occurredAt: log.updatedAt, employeeName: log.employee.name })),
       ...activeEmployees.filter(employee => !recorded.has(employee.id)).map(employee => ({ id: `missing-${employee.id}`, type: 'missing_attendance', title: `${employee.name} has not marked attendance`, message: 'No attendance entry for today', status: 'attention', occurredAt: startOfDay(today), employeeName: employee.name })),
