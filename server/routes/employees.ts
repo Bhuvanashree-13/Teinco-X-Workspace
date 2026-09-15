@@ -1,6 +1,6 @@
 import { Router } from 'express'
 import { randomUUID } from 'node:crypto'
-import { endOfDay, endOfYear, format, startOfDay, startOfYear } from 'date-fns'
+import { endOfDay, endOfMonth, endOfYear, format, startOfDay, startOfMonth, startOfYear } from 'date-fns'
 import { prisma } from '../db.js'
 import { isAdmin, requireAdmin, requireAuth, type AuthedRequest } from '../middleware/auth.js'
 import { verifyPayslipDownloadToken } from '../lib/automations.js'
@@ -10,6 +10,19 @@ const router = Router()
 const PENDING_EMPLOYEE_PASSWORD_PREFIX = 'pending-employee-password:'
 
 const toNumber = (value: unknown) => Number(value) || 0
+const MONTHLY_LEAVE_ALLOWANCE = 2
+const leaveCycle = (date = new Date()) => {
+  const year = date.getFullYear()
+  if (year === 2026) return { start: new Date(2026, 8, 1), end: new Date(2026, 11, 31, 23, 59, 59, 999), label: 'September–December 2026' }
+  return { start: startOfYear(date), end: endOfYear(date), label: `January–December ${year}` }
+}
+const ensureMonthlyLeaveLimit = async (employeeId: number, startDate: Date, endDate: Date, days: number, excludeId?: number) => {
+  const cycle = leaveCycle(startDate)
+  if (startDate < cycle.start || endDate > cycle.end || startDate.getFullYear() !== endDate.getFullYear() || startDate.getMonth() !== endDate.getMonth()) throw new Error(`Paid leave must be within one month of the ${cycle.label} leave cycle.`)
+  if (!Number.isFinite(days) || days <= 0 || days > MONTHLY_LEAVE_ALLOWANCE) throw new Error(`Paid leave is limited to ${MONTHLY_LEAVE_ALLOWANCE} days per month.`)
+  const used = await prisma.leaveRequest.aggregate({ where: { employeeId, leaveType: 'paid_time_off', status: { in: ['pending', 'approved'] }, startDate: { gte: startOfMonth(startDate), lte: endOfMonth(startDate) }, ...(excludeId ? { id: { not: excludeId } } : {}) }, _sum: { days: true } })
+  if (toNumber(used._sum.days) + days > MONTHLY_LEAVE_ALLOWANCE) throw new Error(`Only ${MONTHLY_LEAVE_ALLOWANCE} paid leave days are available in ${format(startDate, 'MMMM yyyy')}.`)
+}
 
 const serializeEmployee = (employee: any) => ({
   ...employee,
@@ -362,8 +375,7 @@ router.get('/leave', async (req: AuthedRequest, res) => {
 
 router.get('/leave/balances', async (req: AuthedRequest, res) => {
   try {
-    const yearStart = startOfYear(new Date())
-    const yearEnd = endOfYear(new Date())
+    const cycle = leaveCycle()
     const employeeWhere = isAdmin(req)
       ? { isArchived: false }
       : { id: requireLinkedEmployee(req, res) || -1, isArchived: false }
@@ -375,7 +387,7 @@ router.get('/leave/balances', async (req: AuthedRequest, res) => {
         where: {
           status: 'approved',
           leaveType: 'paid_time_off',
-          startDate: { gte: yearStart, lte: yearEnd },
+          startDate: { gte: cycle.start, lte: cycle.end },
         },
         _sum: { days: true },
       }),
@@ -383,7 +395,8 @@ router.get('/leave/balances', async (req: AuthedRequest, res) => {
     const usedByEmployee = new Map(approvedLeave.map(item => [item.employeeId, toNumber(item._sum.days)]))
 
     res.json(employees.map(employee => {
-      const allowance = toNumber(employee.annualPtoDays)
+      const now = new Date()
+      const allowance = ((now.getFullYear() - cycle.start.getFullYear()) * 12 + now.getMonth() - cycle.start.getMonth() + 1) * MONTHLY_LEAVE_ALLOWANCE
       const used = usedByEmployee.get(employee.id) || 0
       return {
         employeeId: employee.id,
@@ -393,6 +406,10 @@ router.get('/leave/balances', async (req: AuthedRequest, res) => {
         allowance,
         used,
         balance: Math.max(allowance - used, 0),
+        monthlyAllowance: MONTHLY_LEAVE_ALLOWANCE,
+        cycleStart: cycle.start,
+        cycleEnd: cycle.end,
+        cycleLabel: cycle.label,
       }
     }))
   } catch (error) {
@@ -406,16 +423,19 @@ router.post('/leave', async (req: AuthedRequest, res) => {
     const data = req.body
     const employeeId = isAdmin(req) ? Number(data.employeeId) : requireLinkedEmployee(req, res)
     if (!employeeId) return
-    const year = new Date().getFullYear()
+    const startDate = new Date(data.startDate), endDate = new Date(data.endDate), days = Number(data.days) || 1
+    if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime()) || startDate > endDate) return res.status(400).json({ error: 'Choose valid leave dates.' })
+    if ((data.leaveType || 'paid_time_off') === 'paid_time_off') await ensureMonthlyLeaveLimit(employeeId, startDate, endDate, days)
+    const year = startDate.getFullYear()
     const count = await prisma.leaveRequest.count({ where: { requestId: { startsWith: `PTO-${year}` } } })
     const leave = await prisma.leaveRequest.create({
       data: {
         requestId: `PTO-${year}-${String(count + 1).padStart(6, '0')}`,
         employeeId,
         leaveType: data.leaveType || 'paid_time_off',
-        startDate: new Date(data.startDate),
-        endDate: new Date(data.endDate),
-        days: Number(data.days) || 1,
+        startDate,
+        endDate,
+        days,
         reason: data.reason || null,
         approverName: data.approverName || null,
         blackoutChecked: Boolean(data.blackoutChecked),
@@ -425,12 +445,16 @@ router.post('/leave', async (req: AuthedRequest, res) => {
     res.json(serializeLeave(leave))
   } catch (error) {
     console.error('Create leave error:', error)
-    res.status(500).json({ error: 'Failed to create leave request' })
+    const message = error instanceof Error ? error.message : 'Failed to create leave request'
+    res.status(message.includes('Paid leave') || message.includes('Only ') ? 400 : 500).json({ error: message })
   }
 })
 
 router.put('/leave/:id/status', requireAdmin, async (req, res) => {
   try {
+    const existing = await prisma.leaveRequest.findUnique({ where: { id: Number(req.params.id) } })
+    if (!existing) return res.status(404).json({ error: 'Leave request not found' })
+    if (req.body.status === 'approved' && existing.leaveType === 'paid_time_off') await ensureMonthlyLeaveLimit(existing.employeeId, existing.startDate, existing.endDate, toNumber(existing.days), existing.id)
     const leave = await prisma.leaveRequest.update({
       where: { id: Number(req.params.id) },
       data: {
@@ -443,7 +467,8 @@ router.put('/leave/:id/status', requireAdmin, async (req, res) => {
     res.json(serializeLeave(leave))
   } catch (error) {
     console.error('Update leave error:', error)
-    res.status(500).json({ error: 'Failed to update leave request' })
+    const message = error instanceof Error ? error.message : 'Failed to update leave request'
+    res.status(message.includes('Paid leave') || message.includes('Only ') ? 400 : 500).json({ error: message })
   }
 })
 
@@ -854,7 +879,7 @@ router.post('/', requireAdmin, async (req, res) => {
           employmentType: data.employmentType || 'full_time',
           monthlyCost,
           annualCost: monthlyCost * 12,
-          annualPtoDays: Number(data.annualPtoDays) || 18,
+          annualPtoDays: 24,
           startDate: data.startDate ? new Date(data.startDate) : null,
           status: data.status || 'active',
           notes: data.notes || null,

@@ -392,7 +392,7 @@ model Employee {
   employmentType String                 @default("full_time") // full_time | part_time | contractor | freelancer | intern
   monthlyCost    Decimal                @default(0)
   annualCost     Decimal                @default(0)
-  annualPtoDays  Decimal                @default(18)
+  annualPtoDays  Decimal                @default(24)
   startDate      DateTime?
   endDate        DateTime?
   status         String                 @default("active") // active | on_leave | terminated | contractor
