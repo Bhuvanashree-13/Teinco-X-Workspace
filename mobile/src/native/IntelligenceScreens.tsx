@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Alert, KeyboardAvoidingView, NativeEventEmitter, NativeModules, PermissionsAndroid, Platform, Pressable, RefreshControl, ScrollView, Text, TextInput, View } from 'react-native'
+import { Alert, KeyboardAvoidingView, Modal, NativeEventEmitter, NativeModules, PermissionsAndroid, Platform, Pressable, RefreshControl, ScrollView, Text, TextInput, View } from 'react-native'
 import { useNavigation } from '@react-navigation/native'
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack'
 import { useAuth } from '../auth/AuthContext'
@@ -7,7 +7,7 @@ import { request } from '../api'
 import { useRemote } from '../hooks/useRemote'
 import { useMobileTheme, colors, currency, shortDate } from '../theme'
 import { modules, sourceRoute, type Row } from './domain'
-import { Button, Chips, Empty, Icon, LoadState, Panel, Section, Tag, s } from './Ui'
+import { Button, Empty, Icon, LoadState, Panel, Section, Tag, s } from './Ui'
 import type { RootStack } from './navigation'
 function SourceLink({ href, label }: { href: string; label: string }) {
   useMobileTheme()
@@ -20,30 +20,32 @@ export function AskAIScreen() {
 
   const { user, token, serverUrl } = useAuth(), admin = user?.role === 'admin'
   const config = useRemote<Row>(admin ? '/flow/ask/config' : null)
-  const [question, setQuestion] = useState(''), [period, setPeriod] = useState('month'), [busy, setBusy] = useState(false), [answer, setAnswer] = useState<Row | null>(null), [error, setError] = useState(''), [connection, setConnection] = useState(''), [messages, setMessages] = useState<Row[]>([])
+  const [question, setQuestion] = useState(''), [period, setPeriod] = useState('month'), [busy, setBusy] = useState(false), [error, setError] = useState(''), [messages, setMessages] = useState<Row[]>([])
   const [conversations, setConversations] = useState<Row[]>([]), [conversationId, setConversationId] = useState<number | null>(null)
+  const [historyOpen, setHistoryOpen] = useState(false), [historyLoading, setHistoryLoading] = useState(false)
   const [listening, setListening] = useState(false), [voiceEnabled, setVoiceEnabled] = useState(true)
   const pending = useRef(false)
-  const run = async (mode: 'ask' | 'facts' | 'test', spokenPrompt?: string) => {
+  const chatScroll = useRef<ScrollView>(null)
+  const run = async (spokenPrompt?: string) => {
     const prompt = (spokenPrompt ?? question).trim()
-    if (pending.current || (mode === 'ask' && (!config.data?.enabled || prompt.length < 3))) return
+    if (pending.current || !config.data?.enabled || prompt.length < 3) return
     pending.current = true; setBusy(true); setError('')
     const history = messages.slice(-12).map(message => ({ role: message.role, content: message.content }))
-    if (mode !== 'test') setAnswer(null)
-    if (mode === 'ask') { setMessages(current => [...current, { role: 'user', content: prompt }]); setQuestion('') }
+    setMessages(current => [...current, { role: 'user', content: prompt }]); setQuestion('')
     try {
-      const result = await request<Row>(serverUrl, mode === 'facts' ? `/flow/ask/context?period=${period}` : mode === 'test' ? '/flow/ask/test' : '/flow/ask', token, mode === 'facts' ? undefined : { method: 'POST', body: JSON.stringify(mode === 'test' ? {} : { question: prompt, period, history, ...(conversationId ? { conversationId } : {}) }) })
-      if (mode === 'test') setConnection(result.message); else { setAnswer(result); if (mode === 'ask') { setMessages(current => [...current, { role: 'assistant', content: result.message || 'Here is what I found.', evidence: result }]); if (voiceEnabled) void NativeModules.VyomVoice?.speak(result.facts?.map((fact: Row) => fact.text).join(' ') || result.message || '') } }
-      if (mode === 'ask' && result.conversationId) setConversationId(result.conversationId)
-    } catch (err) { setError(err instanceof Error ? err.message : 'Could not answer this question.') }
+      const result = await request<Row>(serverUrl, '/flow/ask', token, { method: 'POST', body: JSON.stringify({ question: prompt, period, history, ...(conversationId ? { conversationId } : {}) }) })
+      setMessages(current => [...current, { role: 'assistant', content: result.message || 'Here is what I found.', evidence: result }])
+      if (voiceEnabled) void NativeModules.VyomVoice?.speak(result.message || result.facts?.map((fact: Row) => fact.text).join(' ') || '')
+      if (result.conversationId) setConversationId(result.conversationId)
+    } catch (err) { setError(err instanceof Error ? err.message : 'Could not answer this question.'); setQuestion(prompt) }
     finally { pending.current = false; setBusy(false) }
   }
   useEffect(() => {
     const voice = NativeModules.VyomVoice
     if (!voice) return
     const events = new NativeEventEmitter(voice)
-    const result = events.addListener('VyomVoiceResult', ({ value }: { value: string }) => { setListening(false); setQuestion(value); if (value.trim()) void run('ask', value) })
-    const failure = events.addListener('VyomVoiceError', () => { setListening(false); setError('Vyom could not hear that. Check microphone permission and try again.') })
+    const result = events.addListener('VyomVoiceResult', ({ value }: { value: string }) => { setListening(false); setQuestion(value); if (value.trim()) void run(value) })
+    const failure = events.addListener('VyomVoiceError', ({ value }: { value: string }) => { setListening(false); const messages: Record<string, string> = { ERROR_AUDIO: 'The microphone could not be opened. Check microphone access and try again.', ERROR_INSUFFICIENT_PERMISSIONS: 'Microphone permission is required to speak with Vyom.', ERROR_NO_MATCH: 'No speech was detected. Try speaking closer to the microphone.', ERROR_NETWORK: 'Voice recognition could not reach the recognition service. Check your connection and retry.', ERROR_RECOGNIZER_BUSY: 'Voice recognition is busy. Wait a moment and try again.' }; setError(messages[value] || 'Voice recognition failed. Check microphone access and try again.') })
     return () => { result.remove(); failure.remove(); voice.stopListening(); voice.stopSpeaking() }
   }, [config.data?.enabled, period, messages, voiceEnabled])
   useEffect(() => {
@@ -54,7 +56,7 @@ export function AskAIScreen() {
     }).catch(() => undefined)
   }, [admin, serverUrl, token])
   const newConversation = async () => {
-    try { const row = await request<Row>(serverUrl, '/flow/ask/conversations', token, { method: 'POST', body: JSON.stringify({ period }) }); setConversations(current => [row, ...current]); setConversationId(row.id); setMessages([]); setAnswer(null); setQuestion('') }
+    try { const row = await request<Row>(serverUrl, '/flow/ask/conversations', token, { method: 'POST', body: JSON.stringify({ period }) }); setConversations(current => [row, ...current]); setConversationId(row.id); setMessages([]); setQuestion(''); setHistoryOpen(false) }
     catch { setError('Could not start a new conversation.') }
   }
   const deleteConversation = async () => {
@@ -62,8 +64,27 @@ export function AskAIScreen() {
     try {
       await request(serverUrl, `/flow/ask/conversations/${conversationId}`, token, { method: 'DELETE' })
       const remaining = conversations.filter(row => row.id !== conversationId)
-      setConversations(remaining); setConversationId(remaining[0]?.id || null); setMessages(remaining[0]?.messages || []); setAnswer(null)
+      setConversations(remaining); setConversationId(remaining[0]?.id || null); setMessages(remaining[0]?.messages || [])
     } catch { setError('Could not delete this conversation.') }
+  }
+  const openHistory = async () => {
+    if (busy) return
+    setHistoryOpen(true); setHistoryLoading(true)
+    try { setConversations(await request<Row[]>(serverUrl, '/flow/ask/conversations', token)) }
+    catch { setError('Could not load previous conversations.') }
+    finally { setHistoryLoading(false) }
+  }
+  const selectConversation = (row: Row) => {
+    setConversationId(row.id); setMessages(row.messages || []); setPeriod(row.period || 'month'); setQuestion(''); setError(''); setHistoryOpen(false)
+  }
+  const reviewProposal = async (proposal: Row, decision: 'approve' | 'reject') => {
+    if (busy || proposal.status !== 'pending') return
+    setBusy(true); setError('')
+    try {
+      const updated = await request<Row>(serverUrl, `/flow/ask/proposals/${proposal.id}/${decision}`, token, { method: 'POST', body: '{}' })
+      setMessages(current => current.map(message => message.evidence?.proposal?.id === proposal.id ? { ...message, evidence: { ...message.evidence, proposal: updated } } : message))
+    } catch (err) { setError(err instanceof Error ? err.message : 'Could not review this proposal.') }
+    finally { setBusy(false) }
   }
   const listen = async () => {
     if (!NativeModules.VyomVoice) { setError('Voice mode is unavailable on this device.'); return }
@@ -76,21 +97,47 @@ export function AskAIScreen() {
     try { await NativeModules.VyomVoice.startListening() } catch { setListening(false); setError('Voice recognition is unavailable on this device.') }
   }
   if (!admin) return <Empty title="Admin access required" />
-  return <KeyboardAvoidingView style={s.page} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={95}><ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={s.content}>
-    <View style={{ alignItems: 'center', gap: 12, paddingVertical: 12 }}><View style={{ padding: 20, borderRadius: 25, backgroundColor: colors.softBlue }}><Icon name="sparkles-outline" size={36} color={colors.accent} /></View><Text style={s.title}>Vyom</Text><Text style={[s.caption, { textAlign: 'center' }]}>Your conversational workspace assistant, with verified sources.</Text></View>
-    <LoadState loading={config.loading && !config.data} error={config.error} retry={config.refresh} />
-    {config.data && !config.data.enabled && <Panel><Text style={[s.valueText, { color: colors.amber }]}>AI connection not configured</Text><Text style={s.caption}>The workspace server needs a model connection. You can still view verified facts below.</Text></Panel>}
-    <Panel><Text style={s.sectionTitle}>{conversations.find(row => row.id === conversationId)?.title || 'New conversation'}</Text><Text style={s.caption}>Vyom saves this conversation to your administrator account.</Text><View style={{ flexDirection: 'row', gap: 10 }}><View style={{ flex: 1 }}><Button secondary icon="add-outline" label="New" onPress={() => void newConversation()} /></View><View style={{ flex: 1 }}><Button secondary icon="trash-outline" label="Delete" disabled={!conversationId || busy} onPress={() => Alert.alert('Delete conversation?', 'This removes the saved Vyom conversation.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Delete', style: 'destructive', onPress: () => void deleteConversation() }])} /></View></View></Panel>
-    <Chips value={period} onChange={value => { if (!busy) { setPeriod(value); setAnswer(null) } }} items={[{ id: 'month', label: 'This month' }, { id: 'last_month', label: 'Last month' }, { id: 'year', label: 'This year' }]} />
-    {!!messages.length && <View style={{ gap: 10 }}>{messages.map((message, index) => <View key={index} style={{ alignSelf: message.role === 'user' ? 'flex-end' : 'stretch', maxWidth: '92%', borderRadius: 18, padding: 14, backgroundColor: message.role === 'user' ? colors.accent : colors.surface, borderWidth: message.role === 'assistant' ? 1 : 0, borderColor: colors.border }}><Text style={[s.valueText, message.role === 'user' && { color: colors.onPrimary }]}>{message.content}</Text>{message.evidence?.facts?.map((fact: Row) => <View key={fact.id} style={{ paddingTop: 12 }}><Text style={s.valueText}>{fact.text}</Text><SourceLink href={fact.source.href} label={fact.source.label} /></View>)}</View>)}</View>}
-    <Panel><Text style={s.sectionTitle}>Message Vyom</Text><TextInput selectionColor={colors.primary} accessibilityLabel="Message Vyom" value={question} editable={!busy} onChangeText={setQuestion} maxLength={1000} multiline placeholder="What's happening in the workspace?" placeholderTextColor={colors.muted} style={{ minHeight: 100, color: colors.ink, fontSize: 16, textAlignVertical: 'top', lineHeight: 24 }} /><Button icon={listening ? 'mic-off-outline' : 'mic-outline'} label={listening ? 'Listening… tap to stop' : 'Speak to Vyom'} busy={false} disabled={busy || !config.data?.enabled} onPress={() => void listen()} /><Button secondary icon={voiceEnabled ? 'volume-high-outline' : 'volume-mute-outline'} label={voiceEnabled ? 'Voice responses on' : 'Voice responses off'} onPress={() => { NativeModules.VyomVoice?.stopSpeaking(); setVoiceEnabled(value => !value) }} /><Button icon="arrow-up" label="Ask Vyom" busy={busy} disabled={!config.data?.enabled || question.trim().length < 3} onPress={() => void run('ask')} /></Panel>
-    <Text style={s.caption}>Try a question</Text><View style={{ gap: 8 }}>{["What's happening in the workspace?", 'What needs my attention today?', 'Are any tasks blocked?', 'What meetings are coming up?', 'How much have we spent?'].map(example => <Pressable accessibilityRole="button" key={example} disabled={busy} onPress={() => setQuestion(example)} style={{ borderRadius: 14, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, padding: 14 }}><Text style={s.valueText}>{example}</Text></Pressable>)}</View>
-    <Button secondary icon="document-text-outline" label="View available facts" disabled={busy} onPress={() => void run('facts')} />
-    {!!error && <Text accessibilityRole="alert" style={s.errorText}>{error}</Text>}
-    {answer && !messages.length && <Panel><Text style={s.sectionTitle}>Available workspace facts</Text><Text style={s.caption}>{shortDate(answer.start)} – {shortDate(answer.end)}</Text>{answer.facts?.map((fact: Row) => <View key={fact.id} style={{ paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: colors.border }}><Text style={[s.valueText, { lineHeight: 25 }]}>{fact.text}</Text><SourceLink href={fact.source.href} label={fact.source.label} /></View>)}</Panel>}
-    {config.data?.enabled && <><Button secondary label="Test model connection" disabled={busy} onPress={() => void run('test')} />{!!connection && <Text style={s.caption}>{connection}</Text>}</>}
-    <Text style={s.caption}>Vyom remembers this conversation and answers from Finance, People, attendance, leave, Taskboard, Schedule, subscriptions and Flow. It is read-only.</Text>
-  </ScrollView></KeyboardAvoidingView>
+  const activeConversation = conversations.find(row => row.id === conversationId)
+  return <KeyboardAvoidingView style={s.page} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={95}>
+    <View style={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 8, borderBottomWidth: 1, borderBottomColor: colors.border, backgroundColor: colors.surface }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+        <View style={{ width: 40, height: 40, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.softBlue }}><Icon name="sparkles" size={22} color={colors.accent} /></View>
+        <View style={{ flex: 1 }}><Text style={[s.sectionTitle, { fontSize: 20 }]}>Vyom</Text><Text style={[s.caption, { marginTop: 0 }]} numberOfLines={1}>{activeConversation?.title || 'New conversation'}</Text></View>
+        <Pressable accessibilityRole="button" accessibilityLabel="Previous conversations" onPress={() => void openHistory()} style={{ width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }}><Icon name="time-outline" color={colors.primary} /></Pressable>
+        <Pressable accessibilityRole="button" accessibilityLabel="New conversation" onPress={() => void newConversation()} style={{ width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }}><Icon name="create-outline" color={colors.primary} /></Pressable>
+        <Pressable accessibilityRole="button" accessibilityLabel="Delete conversation" disabled={!conversationId || busy} onPress={() => Alert.alert('Delete conversation?', 'This removes the saved Vyom conversation.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Delete', style: 'destructive', onPress: () => void deleteConversation() }])} style={{ width: 44, height: 44, alignItems: 'center', justifyContent: 'center', opacity: !conversationId || busy ? .4 : 1 }}><Icon name="trash-outline" color={colors.muted} /></Pressable>
+      </View>
+    </View>
+    <ScrollView ref={chatScroll} style={{ flex: 1 }} keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 16, paddingBottom: 28, gap: 14 }} onContentSizeChange={() => { if (messages.length) chatScroll.current?.scrollToEnd({ animated: true }) }}>
+      <LoadState loading={config.loading && !config.data} error={config.error} retry={config.refresh} />
+      {config.data && !config.data.enabled && <Panel><Text style={[s.valueText, { color: colors.amber }]}>AI connection not configured</Text><Text style={s.caption}>The workspace server needs a model connection.</Text></Panel>}
+      {!messages.length && <View style={{ alignItems: 'center', paddingVertical: 28, gap: 10 }}><View style={{ padding: 16, borderRadius: 22, backgroundColor: colors.softBlue }}><Icon name="sparkles-outline" size={30} color={colors.accent} /></View><Text style={s.title}>Ask Vyom</Text><Text style={[s.caption, { textAlign: 'center', maxWidth: 290 }]}>Ask about your workspace, its features, or a general topic.</Text></View>}
+      {!!messages.length && <View style={{ gap: 12 }}>{messages.map((message, index) => <View key={index} style={{ alignSelf: message.role === 'user' ? 'flex-end' : 'flex-start', maxWidth: '92%', borderRadius: 18, padding: 14, backgroundColor: message.role === 'user' ? colors.accent : colors.surface, borderWidth: message.role === 'assistant' ? 1 : 0, borderColor: colors.border }}><Text style={[s.valueText, message.role === 'user' && { color: colors.onPrimary }]}>{message.content}</Text>{message.evidence?.facts?.map((fact: Row) => <View key={fact.id} style={{ paddingTop: 12 }}><Text style={s.valueText}>{fact.text}</Text><SourceLink href={fact.source.href} label={fact.source.label} /></View>)}</View>)}</View>}
+      {busy && <Text style={s.caption}>Vyom is thinking…</Text>}
+      {messages.flatMap(message => message.evidence?.proposal ? [message.evidence.proposal] : []).map((proposal: Row) => <Panel key={proposal.id}><Text style={s.sectionTitle}>Approval required · {String(proposal.action).replace(/_/g, ' ')}</Text><Text style={s.caption}>Target: {proposal.targetRef || 'new record'} · Status: {proposal.status}</Text><Text style={s.caption}>Before</Text><Text style={s.valueText}>{proposal.beforeValue ? JSON.stringify(proposal.beforeValue, null, 2) : 'New record'}</Text><Text style={s.caption}>Proposed change</Text><Text style={s.valueText}>{JSON.stringify(proposal.payload, null, 2)}</Text>{proposal.status === 'pending' && <><Button label="Approve and execute" busy={busy} onPress={() => void reviewProposal(proposal, 'approve')} /><Button secondary label="Reject" disabled={busy} onPress={() => void reviewProposal(proposal, 'reject')} /></>}{proposal.failureReason && <Text style={s.errorText}>{proposal.failureReason}</Text>}</Panel>)}
+      {!!error && <Text accessibilityRole="alert" style={s.errorText}>{error}</Text>}
+    </ScrollView>
+    <View style={{ paddingHorizontal: 16, paddingVertical: 10, borderTopWidth: 1, borderTopColor: colors.border, backgroundColor: colors.surface }}>
+      <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 8, borderWidth: 1, borderColor: colors.border, borderRadius: 20, paddingLeft: 12, paddingRight: 5, paddingVertical: 5, backgroundColor: colors.background }}>
+        <TextInput selectionColor={colors.primary} accessibilityLabel="Message Vyom" value={question} editable={!busy} onChangeText={setQuestion} maxLength={1000} multiline placeholder="Message Vyom…" placeholderTextColor={colors.muted} style={{ flex: 1, minHeight: 42, maxHeight: 120, color: colors.ink, fontSize: 16, textAlignVertical: 'center', lineHeight: 22 }} />
+        <Pressable accessibilityRole="button" accessibilityLabel="Send message" disabled={busy || !config.data?.enabled || question.trim().length < 3} onPress={() => void run()} style={{ width: 42, height: 42, borderRadius: 15, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.primary, opacity: busy || !config.data?.enabled || question.trim().length < 3 ? .45 : 1 }}><Icon name="arrow-up" color={colors.onPrimary} size={22} /></Pressable>
+      </View>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 6 }}>
+        <Pressable accessibilityRole="button" accessibilityLabel={listening ? 'Stop listening' : 'Speak to Vyom'} disabled={busy || !config.data?.enabled} onPress={() => void listen()} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 40, paddingHorizontal: 8, opacity: busy || !config.data?.enabled ? .5 : 1 }}><Icon name={listening ? 'mic-off-outline' : 'mic-outline'} color={colors.primary} size={18} /><Text style={s.link}>{listening ? 'Listening…' : 'Speak'}</Text></Pressable>
+        <Pressable accessibilityRole="button" accessibilityLabel={voiceEnabled ? 'Turn voice responses off' : 'Turn voice responses on'} onPress={() => { NativeModules.VyomVoice?.stopSpeaking(); setVoiceEnabled(value => !value) }} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 40, paddingHorizontal: 8 }}><Icon name={voiceEnabled ? 'volume-high-outline' : 'volume-mute-outline'} color={colors.muted} size={18} /><Text style={s.caption}>{voiceEnabled ? 'Voice on' : 'Voice off'}</Text></Pressable>
+      </View>
+    </View>
+    <Modal visible={historyOpen} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setHistoryOpen(false)}>
+      <View style={[s.page, { padding: 20 }]}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}><Text style={s.title}>Previous conversations</Text><Pressable accessibilityRole="button" accessibilityLabel="Close previous conversations" onPress={() => setHistoryOpen(false)} style={{ width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }}><Icon name="close" color={colors.primary} /></Pressable></View>
+        {historyLoading && <Text style={s.caption}>Loading conversations…</Text>}
+        <ScrollView contentContainerStyle={{ gap: 10, paddingBottom: 30 }}>
+          {!historyLoading && !conversations.length && <Text style={s.caption}>No previous conversations yet.</Text>}
+          {conversations.map(row => <Pressable key={row.id} accessibilityRole="button" accessibilityState={{ selected: row.id === conversationId }} onPress={() => selectConversation(row)} style={{ padding: 16, borderRadius: 16, borderWidth: 1, borderColor: row.id === conversationId ? colors.primary : colors.border, backgroundColor: colors.surface, gap: 5 }}><Text numberOfLines={2} style={s.sectionTitle}>{row.title || 'New conversation'}</Text><Text style={s.caption}>{row.messages?.length || 0} messages · {shortDate(row.updatedAt)}</Text></Pressable>)}
+        </ScrollView>
+      </View>
+    </Modal>
+  </KeyboardAvoidingView>
 }
 export function FlowScreen() {
   useMobileTheme()

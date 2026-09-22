@@ -4,7 +4,7 @@ import { readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { allowedModule, canWrite, dateKey, formPayload, initialValues, moduleById, modules, sourceRoute, type Row } from '../mobile/src/native/domain.js'
 import { request } from '../mobile/src/api.js'
-import { isNewerVersion } from '../mobile/src/update-version.js'
+import { isNewerVersion, shouldPromptForUpdate } from '../mobile/src/update-version.js'
 const valuesFor = (id: string, extra: Row) => ({ ...initialValues(moduleById(id).fields), ...extra })
 const expense = { description: 'Cloud service', totalAmount: '123.45', categoryId: '5', gstRate: '18', originalCurrency: 'INR', expenseDate: '2026-09-08', invoiceNumber: 'INV-07' }
 test('Android update comparison accepts newer semantic versions only', () => {
@@ -13,10 +13,19 @@ test('Android update comparison accepts newer semantic versions only', () => {
   assert.equal(isNewerVersion('2.0.3', '2.0.3'), false)
   assert.equal(isNewerVersion('2.0.2', '2.0.3'), false)
 })
-test('employees cannot open finance or intelligence modules or edit shared subscriptions', () => {
+test('Android update prompt is shown only once for each released version', () => {
+  assert.equal(shouldPromptForUpdate('2.1.13', null), true)
+  assert.equal(shouldPromptForUpdate('2.1.13', '2.1.13'), false)
+  assert.equal(shouldPromptForUpdate('2.1.14', '2.1.13'), true)
+})
+test('employees can add vendors, subscriptions and their own tasks without gaining shared-record editing', () => {
   for (const module of modules.filter(item => item.admin)) assert.equal(allowedModule(module.id, 'employee'), false)
   for (const id of ['employees', 'leave', 'attendance', 'balances', 'payslips', 'events', 'milestones', 'subscriptions']) assert.equal(allowedModule(id, 'employee'), true)
-  assert.equal(canWrite(moduleById('subscriptions'), 'employee'), false)
+  assert.equal(canWrite(moduleById('subscriptions'), 'employee'), true)
+  assert.equal(canWrite(moduleById('vendors'), 'employee'), true)
+  assert.equal(canWrite(moduleById('taskboard'), 'employee'), true)
+  assert.equal(canWrite(moduleById('subscriptions'), 'employee', true), false)
+  assert.equal(canWrite(moduleById('vendors'), 'employee', true), false)
   assert.equal(canWrite(moduleById('leave'), 'employee'), true)
 })
 test('expense form emits only editable API fields and preserves decimal values and invoice details', () => {
@@ -53,10 +62,12 @@ test('leave requests reject reversed dates and excess days and cannot spoof an e
   assert.throws(() => formPayload(fields, { ...values, endDate: '2026-09-07' }, 'employee'))
   assert.throws(() => formPayload(fields, { ...values, days: '3' }, 'employee'))
 })
-test('attendance validates duration and check-out order', () => {
-  const fields = moduleById('attendance').fields, values = valuesFor('attendance', { regularHours: '20', overtimeHours: '5' })
-  assert.throws(() => formPayload(fields, values, 'employee'))
-  assert.throws(() => formPayload(fields, { ...values, regularHours: '8', checkIn: '2026-09-08T10:00:00Z', checkOut: '2026-09-08T09:00:00Z' }, 'employee'))
+test('attendance has no manual entry or editable clock fields for any role', () => {
+  const attendance = moduleById('attendance')
+  assert.equal(canWrite(attendance, 'admin'), false)
+  assert.equal(canWrite(attendance, 'employee'), false)
+  assert.ok(!attendance.create)
+  assert.ok(!attendance.fields.some(field => ['checkIn', 'checkOut', 'regularHours', 'overtimeHours'].includes(field.key)))
 })
 test('editing a vendor does not include relations, generated IDs or timestamps', () => {
   const fields = moduleById('vendors').fields, original = { id: 1, code: 'VEN-01', name: 'Vendor', type: 'service', email: 'TEST@EXAMPLE.COM', currency: 'INR', country: 'India', expenses: [{ id: 4 }] }

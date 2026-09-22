@@ -4,13 +4,26 @@ import express from 'express'
 import jwt from 'jsonwebtoken'
 process.env.DATABASE_URL = 'mysql://test:test@localhost:3306/test'
 process.env.JWT_SECRET = 'ask-route-test-secret'
-delete process.env.VYOM_OLLAMA_URL
-delete process.env.ASK_AI_MODEL
+delete process.env.GEMINI_API_KEY
+delete process.env.VYOM_GEMINI_MODEL
 const { prisma } = await import('../server/db.js')
 const { default: flow } = await import('../server/routes/flow.js')
+const { questionDateRange, explicitProposalIntent } = await import('../server/routes/ask-ai.js')
 // Prisma may load the local .env during import. Keep disabled-config tests isolated.
-delete process.env.VYOM_OLLAMA_URL
-delete process.env.ASK_AI_MODEL
+delete process.env.GEMINI_API_KEY
+delete process.env.VYOM_GEMINI_MODEL
+test('Vyom resolves named months independently of the period dropdown', () => {
+  const august = questionDateRange('Get me the complete expense sheet for August', new Date(2026, 8, 19))
+  assert.equal(august?.label, 'August 2026'); assert.equal(august?.start.getMonth(), 7); assert.equal(august?.end.getMonth(), 7)
+  const futureMonth = questionDateRange('Show December expenses', new Date(2026, 8, 19))
+  assert.equal(futureMonth?.label, 'December 2025')
+})
+test('Vyom prepares actions only from explicit action requests', () => {
+  assert.equal(explicitProposalIntent('Create a task in PRJ-VYOM called review security', 'create_task'), true)
+  assert.equal(explicitProposalIntent('What tasks are in PRJ-VYOM?', 'create_task'), false)
+  assert.equal(explicitProposalIntent('Approve leave PTO-2026-000001', 'approve_leave'), true)
+  assert.equal(explicitProposalIntent('Show pending leave', 'approve_leave'), false)
+})
 test('Vyom blocks employees before retrieval and reconciles evidence with database aggregates', async () => {
   const restorations: (() => void)[] = []
   function replace(model: any, method: string, fn: any) { const original = model[method]; restorations.push(() => { model[method] = original }); model[method] = fn }
@@ -27,6 +40,7 @@ test('Vyom blocks employees before retrieval and reconciles evidence with databa
   replace(prisma.employee, 'count', async () => 8)
   replace(prisma.leaveRequest, 'count', async () => 2)
   replace(prisma.attendanceLog, 'count', async () => 6)
+  replace(prisma.workItem, 'findMany', async () => [])
   replace(prisma.workItem, 'count', async (query: any) => query.where.status === 'blocked' ? 1 : 4)
   replace(prisma.scheduleEvent, 'findMany', async () => [{ eventId: 'EVT-1', title: 'Weekly review', startsAt: new Date(), participantsFrom: 'Finance', participantsTo: 'Leadership', purpose: 'Review spending' }])
   replace(prisma.scheduleMilestone, 'count', async () => 3)

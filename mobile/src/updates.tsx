@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react'
-import { AppState, Linking, Modal, Pressable, StyleSheet, Text, View } from 'react-native'
+import { Linking, Modal, Platform, Pressable, Text, View } from 'react-native'
+import AsyncStorage from '@react-native-async-storage/async-storage'
 import { normalizeServerUrl } from './api'
 import { colors, themedStyles, useMobileTheme } from './theme'
-import { APP_VERSION, isNewerVersion } from './update-version'
+import { APP_VERSION, isNewerVersion, shouldPromptForUpdate } from './update-version'
 const updateServer = normalizeServerUrl('https://teinco-x-workspace-production.up.railway.app')
+const PROMPTED_UPDATE_KEY = 'teinco:prompted-android-update'
 
 export type AndroidUpdate = {
   version: string
@@ -20,28 +22,46 @@ export async function checkForAndroidUpdate(signal?: AbortSignal) {
   return result?.downloadUrl && isNewerVersion(result.version, APP_VERSION) ? result : null
 }
 
+export async function openAndroidUpdate(downloadUrl: string) {
+  const url = new URL(downloadUrl)
+  if (url.protocol !== 'https:') throw new Error('The update link is not secure.')
+  await Linking.openURL(downloadUrl)
+}
+
 export function AppUpdatePrompt() {
   useMobileTheme()
   const [update, setUpdate] = useState<AndroidUpdate | null>(null)
   const [dismissed, setDismissed] = useState(false)
+  const [opening, setOpening] = useState(false), [error, setError] = useState('')
   useEffect(() => {
+    if (Platform.OS !== 'android') return
     const controller = new AbortController()
-    let retry: ReturnType<typeof setTimeout> | undefined
-    let attempts = 0
-    const check = () => { attempts += 1; void checkForAndroidUpdate(controller.signal).then(result => { if (result) { setUpdate(result); setDismissed(false) } }).catch(() => { if (attempts < 3) retry = setTimeout(check, attempts * 4000) }) }
-    check()
-    const subscription = AppState.addEventListener('change', state => { if (state === 'active') { attempts = 0; check() } })
-    return () => { controller.abort(); subscription.remove(); if (retry) clearTimeout(retry) }
+    void Promise.all([checkForAndroidUpdate(controller.signal), AsyncStorage.getItem(PROMPTED_UPDATE_KEY)]).then(async ([result, promptedVersion]) => {
+      if (result && shouldPromptForUpdate(result.version, promptedVersion)) {
+        await AsyncStorage.setItem(PROMPTED_UPDATE_KEY, result.version)
+        setUpdate(result)
+      }
+    }).catch(() => undefined)
+    return () => controller.abort()
   }, [])
   if (!update || dismissed) return null
-  return <Modal transparent animationType="fade" visible onRequestClose={() => { if (!update.required) setDismissed(true) }}>
+  const later = () => { if (!update.required) setDismissed(true) }
+  const download = async () => {
+    if (opening) return
+    setOpening(true); setError('')
+    try { await openAndroidUpdate(update.downloadUrl) }
+    catch (reason) { setError(reason instanceof Error ? reason.message : 'Could not open the update download.') }
+    finally { setOpening(false) }
+  }
+  return <Modal transparent animationType="fade" visible onRequestClose={later}>
     <View style={styles.backdrop}><View style={styles.card}>
       <Text style={styles.eyebrow}>UPDATE AVAILABLE</Text>
       <Text style={styles.title}>Teinco-X {update.version}</Text>
       <Text style={styles.message}>{update.notes || 'A newer version of Teinco-X is ready to install.'}</Text>
-      <Pressable accessibilityRole="button" style={styles.primary} onPress={() => void Linking.openURL(update.downloadUrl)}><Text style={styles.primaryText}>Download update</Text></Pressable>
-      {!update.required && <Pressable accessibilityRole="button" style={styles.secondary} onPress={() => setDismissed(true)}><Text style={styles.secondaryText}>Later</Text></Pressable>}
-      <Text style={styles.caption}>Android will ask you to approve the installation. Install over the current app to keep your data.</Text>
+      <Pressable accessibilityRole="button" accessibilityState={{ disabled: opening }} disabled={opening} style={[styles.primary, opening && styles.disabled]} onPress={() => void download()}><Text style={styles.primaryText}>{opening ? 'Opening download…' : 'Update now'}</Text></Pressable>
+      {!update.required && <Pressable accessibilityRole="button" style={styles.secondary} onPress={later}><Text style={styles.secondaryText}>Later</Text></Pressable>}
+      {!!error && <Text accessibilityRole="alert" style={styles.error}>{error}</Text>}
+      <Text style={styles.caption}>The download opens once in your browser. After it finishes, tap the APK and approve installation. Google Play Protect controls whether a scan is shown.</Text>
     </View></View>
   </Modal>
 }
@@ -56,5 +76,6 @@ const styles = themedStyles(() => ({
   primaryText: { color: colors.onPrimary, fontSize: 14, fontWeight: '700' },
   secondary: { minHeight: 46, borderRadius: 15, backgroundColor: colors.softBlue, alignItems: 'center', justifyContent: 'center' },
   secondaryText: { color: colors.primary, fontSize: 14, fontWeight: '700' },
+  disabled: { opacity: .65 }, error: { color: colors.danger, fontSize: 13, lineHeight: 19 },
   caption: { color: colors.muted, fontSize: 12, lineHeight: 18 },
 }))

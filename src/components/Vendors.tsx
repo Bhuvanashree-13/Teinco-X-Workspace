@@ -92,11 +92,11 @@ export default function Vendors() {
           <h2 className="brand-heading">Vendors</h2>
           <p className="brand-caption mt-1">{isAdmin ? 'Track vendor relationships and spending' : 'Browse your company vendor directory'}</p>
         </div>
-        {isAdmin && <div className="mobile-action-stack">
+        <div className="mobile-action-stack">
         <button type="button" onClick={() => openForm()} className="brand-primary-button">
           <Plus className="w-4 h-4" /> Add Vendor
         </button>
-        </div>}
+        </div>
       </div>
 
       {message && <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">{message}</div>}

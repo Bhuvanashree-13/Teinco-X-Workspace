@@ -3,8 +3,7 @@ import { createContext, createElement, useContext, useEffect, useMemo, useRef, u
 import { Appearance } from 'react-native'
 
 export type MobileTheme = 'light' | 'dark'
-const light = { primary: '#315CF3', accent: '#4770FF', violet: '#7648DD', cyan: '#087F8C', ink: '#101828', muted: '#667085', subtle: '#667085', background: '#F3F6FF', surface: '#FFFFFF', surfaceRaised: '#FFFFFF', border: '#DCE4FA', success: '#12805A', danger: '#C73548', softBlue: '#EEF2FF', softGreen: '#EAFBF3', softAmber: '#FFF2DF', softDanger: '#FEF2F2', amber: '#95600F', statusBar: '#F3F6FF', onPrimary: '#FFFFFF', onDanger: '#FFFFFF', hero: '#315CF3', heroText: '#FFFFFF', heroMuted: '#E4EAFF', shadow: '#315CF3' }
-const dark: typeof light = { primary: '#B4A5FF', accent: '#B4A5FF', violet: '#C4ACFF', cyan: '#75D5DE', ink: '#F1EFFA', muted: '#BDB8D4', subtle: '#A49DBE', background: '#191540', surface: '#211D43', surfaceRaised: '#2A254F', border: '#3C355F', success: '#79D6B0', danger: '#FF9AAA', softBlue: '#302851', softGreen: '#203D3D', softAmber: '#403326', softDanger: '#42283F', amber: '#EDC17F', statusBar: '#191540', onPrimary: '#211A40', onDanger: '#351521', hero: '#32285B', heroText: '#F4F0FF', heroMuted: '#D1C7EA', shadow: '#090715' }
+import { light, dark } from './palettes'
 export type MobileColors = typeof light
 export const colors: MobileColors = { ...light }
 export function themedStyles(factory: () => Record<string, any>): any { return new Proxy({}, { get: (_target, property) => factory()[property as string] }) }

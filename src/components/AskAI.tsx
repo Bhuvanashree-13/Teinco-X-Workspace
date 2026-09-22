@@ -1,15 +1,18 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
-import { Bot, Send, FileText, Mic, MicOff, Volume2, VolumeX, Plus, Trash2 } from 'lucide-react'
+import { Bot, Send, FileText, Mic, MicOff, Volume2, VolumeX, Plus, Trash2, PanelLeft, X, MessageSquare, Download } from 'lucide-react'
 import { apiPost, useApi } from '../hooks/useApi'
+declare global { interface String { replaceAll(searchValue: string, replaceValue: string): string } }
 type Fact = { id: string; text: string; source: { label: string; href: string } }
-type Evidence = { facts: Fact[]; start: string; end: string; retrievedAt: string; coverage: string[]; message?: string; status?: string }
+type Artifact = { type: 'expense_csv'; label: string; href: string; filename: string; rowCount: number }
+type Proposal = { id: number; action: string; entityType: string; targetRef?: string | null; payload: Record<string, unknown>; beforeValue?: Record<string, unknown> | null; status: string; expiresAt: string; failureReason?: string | null }
+type Evidence = { facts: Fact[]; start: string; end: string; retrievedAt: string; coverage: string[]; message?: string; status?: string; scope?: 'workspace' | 'general'; artifact?: Artifact; proposal?: Proposal }
 type ChatMessage = { role: 'user' | 'assistant'; content: string; evidence?: Evidence }
 type Conversation = { id: number; title: string; period: string; updatedAt: string; messages: ChatMessage[] }
 type SpeechRecognitionResultLike = { 0: { transcript: string }; isFinal?: boolean }
 type SpeechResultEvent = { resultIndex?: number; results: { length?: number; [index: number]: SpeechRecognitionResultLike } }
-type SpeechRecognitionLike = { lang: string; continuous: boolean; interimResults: boolean; start(): void; stop(): void; abort(): void; onresult: ((event: SpeechResultEvent) => void) | null; onerror: (() => void) | null; onend: (() => void) | null }
-const examples = ["What's happening in the workspace?", 'What needs my attention today?', 'Are any tasks blocked?', 'What meetings are coming up?', 'How much have we spent?']
+type SpeechRecognitionLike = { lang: string; continuous: boolean; interimResults: boolean; start(): void; stop(): void; abort(): void; onresult: ((event: SpeechResultEvent) => void) | null; onerror: ((event: { error?: string }) => void) | null; onend: (() => void) | null }
+const examples = ["What's happening in the workspace?", 'What needs my attention today?', 'How does the Taskboard work?', 'Explain compound interest simply']
 export default function AskAI() {
   const { data: config, loading: configLoading, error: configError, refetch } = useApi<{ enabled: boolean; model: string | null }>('/flow/ask/config')
   const [question, setQuestion] = useState('')
@@ -26,7 +29,9 @@ export default function AskAI() {
   const [listening, setListening] = useState(false)
   const [voiceEnabled, setVoiceEnabled] = useState(true)
   const [voiceError, setVoiceError] = useState('')
+  const [historyOpen, setHistoryOpen] = useState(false)
   const recognition = useRef<SpeechRecognitionLike | null>(null)
+  const conversationEnd = useRef<HTMLDivElement | null>(null)
   const busyRef = useRef(false)
   const listeningRef = useRef(false)
   const lastVoicePrompt = useRef('')
@@ -34,6 +39,7 @@ export default function AskAI() {
     void loadConversations()
     return () => { recognition.current?.abort(); window.speechSynthesis?.cancel() }
   }, [])
+  useEffect(() => { conversationEnd.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }) }, [messages, busy])
   async function loadConversations(preferredId?: number) {
     try {
       const token = localStorage.getItem('teinco-x-token')
@@ -81,6 +87,24 @@ export default function AskAI() {
     finally { busyRef.current = false; setBusy(false) }
   }
   async function submit(event: FormEvent) { event.preventDefault(); await ask(question) }
+  async function downloadArtifact(artifact: Artifact) {
+    try {
+      const token = localStorage.getItem('teinco-x-token')
+      const response = await fetch(artifact.href, { headers: { Authorization: `Bearer ${token || ''}` } })
+      if (!response.ok) throw new Error('Download failed')
+      const url = URL.createObjectURL(await response.blob()), link = document.createElement('a')
+      link.href = url; link.download = artifact.filename; link.click(); URL.revokeObjectURL(url)
+    } catch { setError('Could not download the expense sheet. Please try again.') }
+  }
+  async function reviewProposal(proposal: Proposal, decision: 'approve' | 'reject') {
+    if (busy || proposal.status !== 'pending') return
+    setBusy(true); setError('')
+    try {
+      const updated: Proposal = await apiPost(`/flow/ask/proposals/${proposal.id}/${decision}`, {})
+      setMessages(current => current.map(message => message.evidence?.proposal?.id === proposal.id ? { ...message, evidence: { ...message.evidence, proposal: updated } } : message))
+    } catch (err) { setError(err instanceof Error ? err.message : 'Could not review this proposal.') }
+    finally { setBusy(false) }
+  }
   function listen() {
     if (listeningRef.current) { recognition.current?.stop(); return }
     const SpeechRecognitionConstructor = (window as typeof window & { SpeechRecognition?: new () => SpeechRecognitionLike; webkitSpeechRecognition?: new () => SpeechRecognitionLike }).SpeechRecognition
@@ -100,7 +124,10 @@ export default function AskAI() {
       setListening(false); setQuestion(transcript)
       void ask(transcript)
     }
-    instance.onerror = () => setVoiceError('Vyom could not hear that. Check microphone permission and try again.')
+    instance.onerror = event => {
+      const messages: Record<string, string> = { 'not-allowed': 'Microphone permission is required to speak with Vyom.', 'audio-capture': 'No microphone was found. Check your input device and try again.', 'no-speech': 'No speech was detected. Try speaking closer to the microphone.', network: 'Voice recognition could not reach the browser service. Check your connection and retry.' }
+      setVoiceError(messages[event.error || ''] || 'Voice recognition failed. Check microphone access and try again.')
+    }
     instance.onend = () => { listeningRef.current = false; setListening(false) }
     listeningRef.current = true; setListening(true); instance.start()
   }
@@ -115,21 +142,53 @@ export default function AskAI() {
     } catch (err) { setError(err instanceof Error ? err.message : 'Could not load facts.') }
     finally { setBusy(false) }
   }
-  return <section className="w-full min-w-0 space-y-5">
-    <div className="flex items-center gap-3"><span className="grid h-11 w-11 place-items-center rounded-xl bg-blue-50 text-blue-600 dark:bg-blue-950 dark:text-blue-300"><Bot className="h-6 w-6" /></span><div><h3 className="text-xl font-semibold text-slate-900 dark:text-white">Vyom</h3><p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Your conversational workspace assistant, with verified sources.</p></div></div>
-    {configLoading ? <p role="status">Checking model availability…</p> : configError ? <p role="alert" className="text-red-700 dark:text-red-300">Could not check Vyom configuration. <button onClick={() => void refetch()} className="underline">Retry</button></p> : !config?.enabled && <p className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">Vyom needs a model connection. Open Settings for setup details. You can still view verified workspace facts below.</p>}
-    <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800"><div><p className="text-sm font-medium">{config?.enabled ? `Ollama · ${config.model}` : 'Model not configured'}</p><p role="status" className="mt-1 text-xs text-slate-500 dark:text-slate-400">{connection || 'Test the connection before asking a question.'}</p></div><button type="button" disabled={testing || !config?.enabled} onClick={() => void testConnection()} className="rounded-lg border px-3 py-2 text-sm disabled:opacity-50 dark:border-gray-600">{testing ? 'Testing…' : 'Test connection'}</button></div>
-    <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-800"><select aria-label="Saved Vyom conversations" value={conversationId || ''} onChange={event => { const selected = conversations.find(row => row.id === Number(event.target.value)); if (selected) { setConversationId(selected.id); setMessages(selected.messages); setPeriod(selected.period); setAnswer(null) } }} className="min-w-0 flex-1 rounded-lg border bg-white px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-900"><option value="">Unsaved conversation</option>{conversations.map(row => <option key={row.id} value={row.id}>{row.title}</option>)}</select><button type="button" onClick={() => void newConversation()} className="flex items-center gap-1 rounded-lg border px-3 py-2 text-sm dark:border-gray-600"><Plus className="h-4 w-4" />New</button><button type="button" disabled={!conversationId || busy} onClick={() => void deleteConversation()} className="flex items-center gap-1 rounded-lg border border-red-200 px-3 py-2 text-sm text-red-700 disabled:opacity-50 dark:border-red-900 dark:text-red-300"><Trash2 className="h-4 w-4" />Delete</button></div>
-    {!!messages.length && <div aria-live="polite" className="space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-gray-700 dark:bg-gray-900/40">{messages.map((message, index) => <div key={index} className={`max-w-3xl rounded-xl p-4 ${message.role === 'user' ? 'ml-auto bg-blue-600 text-white' : 'bg-white dark:bg-gray-800'}`}><p className="text-sm leading-6">{message.content}</p>{message.evidence?.facts.map((fact, factIndex) => <div key={fact.id} className="mt-3 border-t border-slate-200 pt-3 dark:border-gray-700"><p className="text-sm">{fact.text}</p><Link to={fact.source.href} className="mt-1 inline-block text-xs text-blue-700 underline dark:text-blue-300">[{factIndex + 1}] {fact.source.label}</Link></div>)}</div>)}</div>}
-    <form onSubmit={submit} className="rounded-xl border border-slate-200 bg-white p-5 dark:border-gray-700 dark:bg-gray-800">
-      <label className="flex flex-col gap-2 text-sm font-medium sm:flex-row sm:items-center sm:gap-4">Reporting period<select disabled={busy} value={period} onChange={event => { setPeriod(event.target.value); setAnswer(null); setError('') }} className="w-full rounded-lg border bg-white sm:w-auto px-3 py-2 dark:border-gray-600 dark:bg-gray-900"><option value="month">Month to date</option><option value="last_month">Last completed month</option><option value="year">Year to date</option></select></label>
-      <label className="mt-4 block text-sm font-medium">Message Vyom<textarea required minLength={3} maxLength={1000} disabled={busy} value={question} onChange={event => setQuestion(event.target.value)} placeholder="What's happening in the workspace?" className="mt-2 min-h-28 w-full rounded-lg border p-3 text-sm dark:border-gray-600 dark:bg-gray-900 dark:text-white" /></label>
-      <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">Vyom remembers this conversation and can explain Finance, People, attendance, leave, Taskboard, Schedule, subscriptions, and Flow from current app records.</p>
-      <div className="mt-4 flex flex-wrap items-center justify-between gap-3"><button type="button" disabled={busy || configLoading || !!configError} onClick={() => void viewFacts()} className="flex items-center gap-2 rounded-lg border px-3 py-2 text-sm disabled:opacity-50 dark:border-gray-600"><FileText className="h-4 w-4" />View available facts</button><div className="flex gap-2"><button type="button" aria-pressed={listening} disabled={busy || !config?.enabled} onClick={listen} className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm disabled:opacity-50 dark:border-gray-600 ${listening ? 'border-red-300 bg-red-50 text-red-700' : ''}`}>{listening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}{listening ? 'Listening…' : 'Speak to Vyom'}</button><button type="button" aria-label={voiceEnabled ? 'Mute Vyom' : 'Enable Vyom voice'} onClick={() => { window.speechSynthesis?.cancel(); setVoiceEnabled(value => !value) }} className="rounded-lg border p-2.5 dark:border-gray-600">{voiceEnabled ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}</button><button disabled={busy || !config?.enabled || question.trim().length < 3} className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"><Send className="h-4 w-4" />{busy ? 'Working…' : 'Ask Vyom'}</button></div></div>
-      {voiceError && <p role="alert" className="mt-3 text-xs text-red-700 dark:text-red-300">{voiceError}</p>}
-    </form>
-    <div className="flex flex-wrap gap-2">{examples.map(example => <button type="button" disabled={busy} key={example} onClick={() => setQuestion(example)} className="rounded-full border border-slate-200 px-3 py-2 text-xs text-slate-600 hover:border-blue-400 dark:border-gray-600 dark:text-slate-300">{example}</button>)}</div>
-    {error && <p role="alert" className="rounded-lg border border-red-200 p-4 text-sm text-red-700 dark:border-red-900 dark:text-red-300">{error}</p>}
-    {answer && preview && <article aria-live="polite" className="rounded-xl border border-slate-200 bg-white p-5 dark:border-gray-700 dark:bg-gray-800"><h4 className="font-semibold">Available workspace facts</h4><p className="mt-2 text-xs text-slate-500 dark:text-slate-400">Retrieved {new Date(answer.retrievedAt).toLocaleTimeString()}</p><ol className="mt-4 space-y-4">{answer.facts.map((fact, index) => <li key={fact.id} className="rounded-lg bg-slate-50 p-4 dark:bg-gray-900/50"><p className="text-sm leading-6">{fact.text}</p><Link to={fact.source.href} className="mt-2 inline-block text-xs text-blue-700 underline dark:text-blue-300">[{index + 1}] {fact.source.label}</Link></li>)}</ol></article>}
+  const chooseConversation = (selected: Conversation) => {
+    setConversationId(selected.id); setMessages(selected.messages); setPeriod(selected.period); setAnswer(null); setError(''); setHistoryOpen(false)
+  }
+  return <section className="relative min-h-[680px] w-full min-w-0 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-900">
+    {historyOpen && <button type="button" aria-label="Close recent chats" onClick={() => setHistoryOpen(false)} className="absolute inset-0 z-20 cursor-default bg-slate-950/20 backdrop-blur-[1px]" />}
+    <aside className={`absolute inset-y-0 left-0 z-30 flex w-[min(86vw,320px)] flex-col border-r border-slate-200 bg-slate-50 shadow-xl transition-transform duration-200 dark:border-gray-700 dark:bg-gray-950 ${historyOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+      <div className="flex items-center justify-between border-b border-slate-200 p-4 dark:border-gray-700"><p className="font-semibold text-slate-900 dark:text-white">Recent chats</p><button type="button" aria-label="Close recent chats" onClick={() => setHistoryOpen(false)} className="rounded-lg p-2 text-slate-500 hover:bg-slate-200 dark:hover:bg-gray-800"><X className="h-5 w-5" /></button></div>
+      <div className="p-3"><button type="button" onClick={() => { void newConversation(); setHistoryOpen(false) }} className="flex w-full items-center gap-2 rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm font-medium hover:bg-slate-50 dark:border-gray-700 dark:bg-gray-900 dark:hover:bg-gray-800"><Plus className="h-4 w-4" />New chat</button></div>
+      <nav aria-label="Recent Vyom chats" className="flex-1 space-y-1 overflow-y-auto px-3 pb-3">
+        {!conversations.length && <p className="px-3 py-8 text-center text-sm text-slate-500">No recent chats yet.</p>}
+        {conversations.map(row => <button type="button" key={row.id} onClick={() => chooseConversation(row)} className={`flex w-full items-start gap-3 rounded-xl px-3 py-3 text-left text-sm transition ${row.id === conversationId ? 'bg-slate-200 text-slate-950 dark:bg-gray-800 dark:text-white' : 'text-slate-700 hover:bg-slate-200/70 dark:text-slate-300 dark:hover:bg-gray-800'}`}><MessageSquare className="mt-0.5 h-4 w-4 shrink-0" /><span className="min-w-0"><span className="block truncate font-medium">{row.title}</span><span className="mt-0.5 block text-xs text-slate-500">{new Date(row.updatedAt).toLocaleDateString()}</span></span></button>)}
+      </nav>
+      <div className="border-t border-slate-200 p-3 dark:border-gray-700"><button type="button" disabled={!conversationId || busy} onClick={() => void deleteConversation()} className="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-sm text-red-700 hover:bg-red-50 disabled:opacity-40 dark:text-red-300 dark:hover:bg-red-950/30"><Trash2 className="h-4 w-4" />Delete current chat</button></div>
+    </aside>
+
+    <header className="grid grid-cols-[40px_1fr_40px] items-center border-b border-slate-200 px-4 py-3 dark:border-gray-700">
+      <button type="button" aria-label="Open recent chats" onClick={() => setHistoryOpen(true)} className="grid h-9 w-9 place-items-center rounded-lg text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-gray-800"><PanelLeft className="h-5 w-5" /></button>
+      <div className="flex items-center justify-center gap-2"><span className="grid h-8 w-8 place-items-center rounded-full bg-gradient-to-br from-blue-600 to-indigo-600 text-white"><Bot className="h-4 w-4" /></span><div><h3 className="text-sm font-semibold text-slate-900 dark:text-white">Vyom</h3><p className="text-[11px] text-emerald-600 dark:text-emerald-400">{config?.enabled ? 'Online · verified workspace answers' : 'Model unavailable'}</p></div></div>
+      <button type="button" aria-label="Start a new chat" onClick={() => void newConversation()} className="grid h-9 w-9 place-items-center rounded-lg text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-gray-800"><Plus className="h-5 w-5" /></button>
+    </header>
+
+    <div className="flex min-h-[610px] flex-col">
+      <div aria-live="polite" className="max-h-[62vh] min-h-[430px] flex-1 overflow-y-auto px-4 py-6 sm:px-8">
+        <div className="mx-auto w-full max-w-3xl space-y-6">
+          <div className="flex items-start gap-3"><span className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-full bg-slate-900 text-white dark:bg-white dark:text-slate-900"><Bot className="h-4 w-4" /></span><div className="max-w-2xl rounded-2xl rounded-tl-md bg-slate-100 px-4 py-3 text-sm leading-6 text-slate-800 dark:bg-gray-800 dark:text-slate-100"><p className="font-medium">Hi, I’m Vyom.</p><p>I can reason about your workspace, explain every feature, or help with general questions. Workspace answers stay read-only and source-backed.</p></div></div>
+          {!messages.length && <div className="grid gap-2 pl-0 sm:grid-cols-2 sm:pl-11">{examples.slice(0, 4).map(example => <button type="button" disabled={busy} key={example} onClick={() => setQuestion(example)} className="rounded-xl border border-slate-200 px-4 py-3 text-left text-sm text-slate-600 transition hover:border-blue-300 hover:bg-blue-50 dark:border-gray-700 dark:text-slate-300 dark:hover:border-blue-700 dark:hover:bg-blue-950/30">{example}</button>)}</div>}
+          {messages.map((message, index) => message.role === 'user'
+            ? <div key={index} className="flex justify-end"><div className="max-w-[85%] rounded-2xl rounded-br-md bg-blue-600 px-4 py-3 text-sm leading-6 text-white">{message.content}</div></div>
+            : <div key={index} className="flex items-start gap-3"><span className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-full bg-slate-900 text-white dark:bg-white dark:text-slate-900"><Bot className="h-4 w-4" /></span><div className="min-w-0 max-w-2xl rounded-2xl rounded-tl-md bg-slate-100 px-4 py-3 text-sm leading-6 text-slate-800 dark:bg-gray-800 dark:text-slate-100">{message.evidence?.scope && <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-slate-500">{message.evidence.scope === 'workspace' ? 'Workspace analysis' : 'General knowledge'}</p>}<p className="whitespace-pre-wrap">{message.content}</p>{message.evidence?.proposal && <div className="mt-4 rounded-xl border border-amber-300 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-950/30"><p className="font-semibold">Approval required · {message.evidence.proposal.action.replaceAll('_', ' ')}</p><p className="text-xs text-slate-600 dark:text-slate-300">Target: {message.evidence.proposal.targetRef || 'new record'} · Status: {message.evidence.proposal.status}</p>{message.evidence.proposal.beforeValue && <details className="mt-2"><summary className="cursor-pointer text-xs font-medium">Before</summary><pre className="mt-1 max-h-40 overflow-auto whitespace-pre-wrap text-xs">{JSON.stringify(message.evidence.proposal.beforeValue, null, 2)}</pre></details>}<details className="mt-2" open><summary className="cursor-pointer text-xs font-medium">Proposed change</summary><pre className="mt-1 max-h-40 overflow-auto whitespace-pre-wrap text-xs">{JSON.stringify(message.evidence.proposal.payload, null, 2)}</pre></details>{message.evidence.proposal.status === 'pending' && <div className="mt-3 flex gap-2"><button type="button" disabled={busy} onClick={() => void reviewProposal(message.evidence!.proposal!, 'approve')} className="rounded-lg bg-emerald-600 px-3 py-1.5 font-medium text-white disabled:opacity-50">Approve and execute</button><button type="button" disabled={busy} onClick={() => void reviewProposal(message.evidence!.proposal!, 'reject')} className="rounded-lg border border-slate-300 px-3 py-1.5 font-medium disabled:opacity-50">Reject</button></div>}{message.evidence.proposal.failureReason && <p className="mt-2 text-xs text-red-700">{message.evidence.proposal.failureReason}</p>}</div>}{message.evidence?.artifact && <button type="button" onClick={() => void downloadArtifact(message.evidence!.artifact!)} className="mt-3 flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-blue-700"><Download className="h-4 w-4" />{message.evidence.artifact.label}<span className="text-xs text-blue-100">({message.evidence.artifact.rowCount} rows)</span></button>}{message.evidence?.facts.map((fact, factIndex) => <div key={fact.id} className="mt-3 border-t border-slate-200 pt-3 dark:border-gray-700"><p>{fact.text}</p><Link to={fact.source.href} className="mt-1 inline-block text-xs font-medium text-blue-700 underline dark:text-blue-300">[{factIndex + 1}] {fact.source.label}</Link></div>)}</div></div>)}
+          {busy && <div className="flex items-center gap-3"><span className="grid h-8 w-8 place-items-center rounded-full bg-slate-900 text-white dark:bg-white dark:text-slate-900"><Bot className="h-4 w-4" /></span><div role="status" className="flex gap-1 rounded-2xl rounded-tl-md bg-slate-100 px-4 py-4 dark:bg-gray-800"><span className="h-2 w-2 animate-bounce rounded-full bg-slate-400" /><span className="h-2 w-2 animate-bounce rounded-full bg-slate-400 [animation-delay:120ms]" /><span className="h-2 w-2 animate-bounce rounded-full bg-slate-400 [animation-delay:240ms]" /></div></div>}
+          {answer && preview && <article className="ml-0 rounded-2xl border border-slate-200 bg-slate-50 p-4 sm:ml-11 dark:border-gray-700 dark:bg-gray-800"><h4 className="font-semibold">Available workspace facts</h4><p className="mt-1 text-xs text-slate-500">Retrieved {new Date(answer.retrievedAt).toLocaleTimeString()}</p><ol className="mt-3 space-y-3">{answer.facts.map((fact, index) => <li key={fact.id} className="text-sm leading-6"><p>{fact.text}</p><Link to={fact.source.href} className="text-xs font-medium text-blue-700 underline dark:text-blue-300">[{index + 1}] {fact.source.label}</Link></li>)}</ol></article>}
+          <div ref={conversationEnd} />
+        </div>
+      </div>
+
+      <div className="border-t border-slate-200 bg-white px-4 py-4 dark:border-gray-700 dark:bg-gray-900 sm:px-8">
+        <div className="mx-auto max-w-3xl">
+          {configLoading ? <p role="status" className="mb-2 text-xs text-slate-500">Checking model availability…</p> : configError ? <p role="alert" className="mb-2 text-xs text-red-700 dark:text-red-300">Could not check Vyom configuration. <button onClick={() => void refetch()} className="underline">Retry</button></p> : !config?.enabled && <p className="mb-2 text-xs text-amber-700 dark:text-amber-300">Vyom needs a model connection. You can still view verified workspace facts.</p>}
+          {error && <p role="alert" className="mb-2 text-xs text-red-700 dark:text-red-300">{error}</p>}
+          <form onSubmit={submit} className="rounded-2xl border border-slate-300 bg-white p-2 shadow-sm focus-within:border-blue-400 focus-within:ring-2 focus-within:ring-blue-100 dark:border-gray-600 dark:bg-gray-800 dark:focus-within:ring-blue-950">
+            <textarea aria-label="Message Vyom" required minLength={3} maxLength={1000} rows={2} disabled={busy} value={question} onChange={event => setQuestion(event.target.value)} onKeyDown={event => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); event.currentTarget.form?.requestSubmit() } }} placeholder="Message Vyom…" className="max-h-36 min-h-12 w-full resize-none bg-transparent px-2 py-2 text-sm outline-none placeholder:text-slate-400 dark:text-white" />
+            <div className="flex items-center justify-between gap-2 border-t border-slate-100 pt-2 dark:border-gray-700"><div className="flex items-center gap-1"><select aria-label="Reporting period" disabled={busy} value={period} onChange={event => { setPeriod(event.target.value); setAnswer(null); setError('') }} className="rounded-lg border-0 bg-slate-100 px-2 py-1.5 text-xs dark:bg-gray-700"><option value="month">Month to date</option><option value="last_month">Last month</option><option value="year">Year to date</option></select><button type="button" aria-label="View available facts" disabled={busy || configLoading || !!configError} onClick={() => void viewFacts()} className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 disabled:opacity-40 dark:hover:bg-gray-700"><FileText className="h-4 w-4" /></button></div><div className="flex items-center gap-1"><button type="button" aria-label={listening ? 'Stop listening' : 'Speak to Vyom'} aria-pressed={listening} disabled={busy || !config?.enabled} onClick={listen} className={`rounded-lg p-2 disabled:opacity-40 ${listening ? 'bg-red-50 text-red-700 dark:bg-red-950/30' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-gray-700'}`}>{listening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}</button><button type="button" aria-label={voiceEnabled ? 'Mute Vyom' : 'Enable Vyom voice'} onClick={() => { window.speechSynthesis?.cancel(); setVoiceEnabled(value => !value) }} className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-gray-700">{voiceEnabled ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}</button><button aria-label="Send message" disabled={busy || !config?.enabled || question.trim().length < 3} className="grid h-9 w-9 place-items-center rounded-xl bg-blue-600 text-white disabled:bg-slate-300 dark:disabled:bg-gray-700"><Send className="h-4 w-4" /></button></div></div>
+          </form>
+          <div className="mt-2 flex items-center justify-between gap-3 px-1"><p className="text-[11px] text-slate-500">Vyom combines verified workspace context with general reasoning.</p><button type="button" disabled={testing || !config?.enabled} onClick={() => void testConnection()} className="text-[11px] text-slate-500 underline disabled:opacity-40">{testing ? 'Testing…' : connection || 'Test connection'}</button></div>
+          {voiceError && <p role="alert" className="mt-2 text-xs text-red-700 dark:text-red-300">{voiceError}</p>}
+        </div>
+      </div>
+    </div>
   </section>
 }

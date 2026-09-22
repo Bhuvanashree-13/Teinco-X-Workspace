@@ -96,6 +96,8 @@ type AttendanceLog = {
   employee: Employee
   workDate: string
   workMode: string
+  checkedIn?: boolean
+  checkedOut?: boolean
   geoFenceStatus: string
   regularHours: number
   overtimeHours: number
@@ -199,18 +201,6 @@ const leaveDefaults = {
   blackoutChecked: true,
 }
 
-const attendanceDefaults = {
-  employeeId: '',
-  workDate: today,
-  checkIn: `${today}T09:30`,
-  checkOut: `${today}T18:30`,
-  workMode: 'office',
-  geoFenceStatus: 'verified',
-  regularHours: '8',
-  overtimeHours: '0',
-  status: 'present',
-  notes: '',
-}
 
 const lifecycleDefaults = {
   employeeId: '',
@@ -298,7 +288,6 @@ export default function People() {
   const [employeeForm, setEmployeeForm] = useState(employeeDefaults)
   const [leaveForm, setLeaveForm] = useState(leaveDefaults)
   const [attendanceDate, setAttendanceDate] = useState(today)
-  const [attendanceForm, setAttendanceForm] = useState(attendanceDefaults)
   const [lifecycleForm, setLifecycleForm] = useState(lifecycleDefaults)
   const [payrollForm, setPayrollForm] = useState(payrollDefaults)
   const [adminForm, setAdminForm] = useState(adminDefaults)
@@ -322,6 +311,8 @@ export default function People() {
   const employeeList = employees || []
   const leaveList = leaveRequests || []
   const balances = ptoBalances || []
+  const { data: ownAttendance, refetch: refetchOwnAttendance, loading: loadingOwnAttendance, error: ownAttendanceError } = useApi<AttendanceLog[]>(isAdmin ? null : '/employees/attendance')
+  const ownLog = ownAttendance?.find(log => log.employee.id === user?.employeeId)
   const attendanceList = attendanceLogs || []
   const notificationList = adminNotifications || []
   const lifecycleList = lifecycleTasks || []
@@ -333,7 +324,7 @@ export default function People() {
     isAdmin ? tabs : tabs.filter(tab => ['directory', 'leave', 'attendance'].includes(tab.id))
   ), [isAdmin])
   const canViewCompensation = isAdmin && showCompensation
-  const canSubmitAttendance = isAdmin ? employeeList.length > 0 : Boolean(user?.employeeId)
+  const canSubmitAttendance = !isAdmin && Boolean(user?.employeeId) && !loadingOwnAttendance && !ownAttendanceError && !!ownAttendance && !ownLog?.checkedOut
 
   useEffect(() => {
     if (!visibleTabs.some(tab => tab.id === activeTab)) {
@@ -341,11 +332,6 @@ export default function People() {
     }
   }, [activeTab, visibleTabs])
 
-  useEffect(() => {
-    if (!isAdmin && user?.employeeId && attendanceForm.employeeId !== String(user.employeeId)) {
-      setAttendanceForm(form => ({ ...form, employeeId: String(user.employeeId) }))
-    }
-  }, [attendanceForm.employeeId, isAdmin, user?.employeeId])
 
   const presentToday = useMemo(() => {
     return summary?.attendanceToday.find(item => item.status === 'present')?.count || 0
@@ -431,16 +417,18 @@ export default function People() {
 
   const submitAttendance = async (event: FormEvent) => {
     event.preventDefault()
+    if (!canSubmitAttendance || saving === 'attendance') return
     setSaving('attendance')
     setMessage('')
     try {
-      await apiPost('/employees/attendance', attendanceForm)
-      setAttendanceDate(attendanceForm.workDate)
+      await apiPost('/employees/attendance/clock', { action: ownLog?.checkedIn ? 'check_out' : 'check_in' })
+      setAttendanceDate(today)
       setMessage('Attendance log recorded.')
       await refreshPeople()
     } catch (error: any) {
       setMessage(error.message || 'Could not record attendance.')
     } finally {
+      await refetchOwnAttendance()
       setSaving('')
     }
   }
@@ -800,7 +788,7 @@ export default function People() {
                 <div key={log.id} className="grid gap-3 p-4 md:grid-cols-[1.3fr_1fr_1fr_auto] md:items-center">
                   <div><p className="font-semibold text-[#1E3A8A] dark:text-white">{log.employee?.name}</p><p className="text-xs text-slate-500">{log.employee?.department || 'Unassigned'}</p></div>
                   <p className="capitalize text-slate-700 dark:text-slate-300">{labelize(log.workMode)} - {labelize(log.geoFenceStatus)}</p>
-                  <p className="text-slate-700 dark:text-slate-300">{log.regularHours}h regular, {log.overtimeHours}h OT</p>
+                  <p className="text-slate-700 dark:text-slate-300">{log.checkedOut ? 'Checked out' : log.checkedIn ? 'Checked in' : log.status}</p>
                   <StatusBadge value={log.status} />
                 </div>
               ))}
@@ -808,34 +796,12 @@ export default function People() {
             </div>
           </div>
 
-          <form onSubmit={submitAttendance} className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800">
-            <h3 className="font-semibold text-[#1E3A8A] dark:text-white">{isAdmin ? 'Record Attendance' : 'Mark My Attendance'}</h3>
-            {!isAdmin && <p className="mt-1 text-sm text-slate-500">Your attendance is linked to your employee login automatically.</p>}
-            <div className="mt-4 space-y-3">
-              {isAdmin ? (
-                <select required value={attendanceForm.employeeId} onChange={event => setAttendanceForm({ ...attendanceForm, employeeId: event.target.value })} className="w-full rounded-lg border p-2.5 text-sm dark:border-gray-700 dark:bg-gray-900 dark:text-white">{renderEmployeeOptions()}</select>
-              ) : (
-                <div className="rounded-lg border border-[#EFF6FF] bg-[#EFF6FF] p-3 text-sm text-[#1E3A8A]">
-                  {employeeList[0]?.name || user?.name || 'Employee'} · {employeeList[0]?.employeeId || 'Linked profile'}
-                </div>
-              )}
-              <input required type="date" value={attendanceForm.workDate} onChange={event => setAttendanceForm({ ...attendanceForm, workDate: event.target.value })} className="w-full rounded-lg border p-2.5 text-sm dark:border-gray-700 dark:bg-gray-900 dark:text-white" />
-              <div className="grid grid-cols-2 gap-3">
-                <input type="datetime-local" value={attendanceForm.checkIn} onChange={event => setAttendanceForm({ ...attendanceForm, checkIn: event.target.value })} className="rounded-lg border p-2.5 text-sm dark:border-gray-700 dark:bg-gray-900 dark:text-white" />
-                <input type="datetime-local" value={attendanceForm.checkOut} onChange={event => setAttendanceForm({ ...attendanceForm, checkOut: event.target.value })} className="rounded-lg border p-2.5 text-sm dark:border-gray-700 dark:bg-gray-900 dark:text-white" />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <input min="0" step="0.25" type="number" value={attendanceForm.regularHours} onChange={event => setAttendanceForm({ ...attendanceForm, regularHours: event.target.value })} className="rounded-lg border p-2.5 text-sm dark:border-gray-700 dark:bg-gray-900 dark:text-white" />
-                <input min="0" step="0.25" type="number" value={attendanceForm.overtimeHours} onChange={event => setAttendanceForm({ ...attendanceForm, overtimeHours: event.target.value })} className="rounded-lg border p-2.5 text-sm dark:border-gray-700 dark:bg-gray-900 dark:text-white" />
-              </div>
-              <select value={attendanceForm.workMode} onChange={event => setAttendanceForm({ ...attendanceForm, workMode: event.target.value })} className="w-full rounded-lg border p-2.5 text-sm dark:border-gray-700 dark:bg-gray-900 dark:text-white"><option value="office">Office</option><option value="remote">Remote</option><option value="hybrid">Hybrid</option><option value="field">Field</option></select>
-              <select value={attendanceForm.status} onChange={event => setAttendanceForm({ ...attendanceForm, status: event.target.value })} className="w-full rounded-lg border p-2.5 text-sm dark:border-gray-700 dark:bg-gray-900 dark:text-white"><option value="present">Present</option><option value="leave">Leave</option><option value="lwop">Leave without pay</option><option value="absent">Absent</option><option value="holiday">Holiday</option></select>
-              <button disabled={saving === 'attendance' || !canSubmitAttendance} className="flex w-full items-center justify-center gap-2 rounded-lg bg-[#1E3A8A] px-4 py-2 text-sm font-medium text-white disabled:opacity-50">
-                <Clock3 className="h-4 w-4" /> Save attendance
-              </button>
-              {!canSubmitAttendance && <p className="text-xs text-red-600">This login is not linked to an employee profile yet. Ask an admin to add your email in People.</p>}
-            </div>
-          </form>
+          {!isAdmin && <form onSubmit={submitAttendance} className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+            <h3 className="font-semibold text-slate-900 dark:text-white">Work mode · Office</h3>
+            <p className="mt-2 text-sm text-slate-500">Check in only after you reach the office. Check out when you leave.</p>
+            <p className="my-4 text-sm text-slate-500">{loadingOwnAttendance ? 'Loading attendance…' : ownAttendanceError ? 'Unable to load attendance. Refresh to retry.' : ownLog?.checkedOut ? 'Workday complete. You have checked out.' : ownLog?.checkedIn ? 'You are checked in.' : 'You have not checked in yet.'}</p>
+            <button disabled={saving === 'attendance' || !canSubmitAttendance} className="min-h-12 w-full rounded-lg bg-indigo-700 px-4 py-3 font-medium text-white disabled:opacity-50">{saving === 'attendance' ? 'Saving…' : ownLog?.checkedOut ? 'Checked out' : ownLog?.checkedIn ? 'Check-out' : 'Check-in'}</button>
+          </form>}
         </section>
       )}
 

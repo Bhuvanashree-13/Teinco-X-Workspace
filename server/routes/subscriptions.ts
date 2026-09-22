@@ -45,7 +45,7 @@ router.get('/:id', async (req, res) => {
   }
 })
 
-router.post('/', requireAdmin, async (req, res) => {
+router.post('/', async (req, res) => {
   try {
     const year = new Date().getFullYear()
     const count = await prisma.subscription.count({

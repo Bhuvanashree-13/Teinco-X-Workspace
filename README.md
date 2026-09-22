@@ -426,7 +426,7 @@ Reference: [Google server-side ID token verification](https://developers.google.
 
 ### Vyom model connection
 
-Local development reads `.env` when running `npm run dev`. Set `VYOM_OLLAMA_URL` to your Ollama base URL (for example `http://127.0.0.1:11434`) and `VYOM_MODEL` to an installed model from `ollama list`. Model requests time out after 180 seconds by default; set `VYOM_TIMEOUT_MS` between 10,000 and 600,000 to override it. Optionally set `VYOM_API_KEY` for an authenticated Ollama gateway. Restart the app server after changing these values.
+Local development reads `.env` when running `npm run dev`. Set `GEMINI_API_KEY` to your Gemini API key and optionally `VYOM_GEMINI_MODEL` (default `gemini-2.5-flash`). Vyom calls the Gemini API from the server; billing and quotas follow your Google API project. Keys are never sent to clients. Set `VYOM_TIMEOUT_MS` between 10,000 and 600,000 to override the 180-second timeout. Restart the app server after changing these values.
 
 For a hosted deployment, set these variables on the application service. The endpoint must be reachable from that server; localhost refers to the hosted server, not your computer. Never put gateway credentials in `VITE_` variables.
 

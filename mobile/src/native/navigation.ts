@@ -7,6 +7,7 @@ export type RootStack = {
   Analytics: undefined
   Flow: undefined
   AskAI: undefined
+  Schedule: undefined
   Settings: undefined
   Account: undefined
 }

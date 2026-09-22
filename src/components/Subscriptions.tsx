@@ -138,22 +138,14 @@ export default function Subscriptions() {
           <h2 className="brand-heading">Subscriptions</h2>
           <p className="brand-caption mt-1">Track recurring software and service commitments</p>
         </div>
-        {isAdmin && (
-          <div className="mobile-action-stack">
+        <div className="mobile-action-stack">
           <button type="button" onClick={() => openForm()} className="brand-primary-button">
             <Plus className="w-4 h-4" /> Add Subscription
           </button>
-          </div>
-        )}
+        </div>
       </div>
 
       {message && <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">{message}</div>}
-      {!isAdmin && (
-        <div className="rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600 shadow-sm dark:border-gray-700 dark:bg-gray-800 dark:text-slate-300">
-          Employee view: subscription records are visible for awareness. Only admins can add or edit company subscriptions.
-        </div>
-      )}
-
       <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:px-0">
         {['active', 'all', 'trial', 'cancelled'].map(f => (
           <button
@@ -234,7 +226,7 @@ export default function Subscriptions() {
         </div>
       )}
 
-      {isAdmin && showForm && (
+      {showForm && (
         <div className="mobile-dialog-overlay" onMouseDown={closeForm}>
           <div className="mobile-dialog-panel" onMouseDown={event => event.stopPropagation()}>
             <div className="mobile-dialog-header">

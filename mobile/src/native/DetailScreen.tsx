@@ -9,6 +9,7 @@ import { allowedModule, canWrite, dateKey, human, moduleById, recordAmount, reco
 import { Button, Empty, Icon, LoadState, Panel, RowValue, Tag, s } from './Ui'
 import { NativeField } from './Fields'
 import type { RootStack } from './navigation'
+import { ProjectLogo } from './ProjectLogo'
 export function DetailScreen({ route, navigation }: NativeStackScreenProps<RootStack, 'Detail'>) {
   useMobileTheme()
 
@@ -37,13 +38,13 @@ export function DetailScreen({ route, navigation }: NativeStackScreenProps<RootS
   }
   const amount = recordAmount(row)
   return <ScrollView style={s.page} contentContainerStyle={s.content} keyboardShouldPersistTaps="handled">
-    <View style={{ alignItems: 'center', paddingVertical: 15, gap: 10 }}><View style={{ backgroundColor: colors.softBlue, padding: 20, borderRadius: 24 }}><Icon name={module.icon} size={32} /></View><Text style={[s.title, { textAlign: 'center', fontSize: 23 }]}>{recordTitle(module.id, row)}</Text>{amount !== null && <Text style={[s.title, { fontSize: 34 }]}>{currency(amount, module.id === 'subscriptions' ? row.currency : 'INR')}</Text>}<Tag value={row.status || row.priority} /><Text style={s.caption}>{recordDate(row) ? shortDate(recordDate(row)) : ''}</Text></View>
+    <View style={{ alignItems: 'center', paddingVertical: 15, gap: 10 }}>{module.id === 'projects' || module.id === 'taskboard' ? <ProjectLogo logoDataUrl={module.id === 'projects' ? row.logoDataUrl : row.project?.logoDataUrl} color={module.id === 'projects' ? row.color : row.project?.color} size={84} /> : <View style={{ backgroundColor: colors.softBlue, padding: 20, borderRadius: 24 }}><Icon name={module.icon} size={32} /></View>}<Text style={[s.title, { textAlign: 'center', fontSize: 23 }]}>{recordTitle(module.id, row)}</Text>{amount !== null && <Text style={[s.title, { fontSize: 34 }]}>{currency(amount, module.id === 'subscriptions' ? row.currency : 'INR')}</Text>}<Tag value={row.status || row.priority} /><Text style={s.caption}>{recordDate(row) ? shortDate(recordDate(row)) : ''}</Text></View>
     <LoadState loading={remote.loading} error={remote.error || error} retry={remote.error ? remote.refresh : undefined} />
-    {module.edit && canWrite(module, role) && !row.payrollBatchId && !remote.loading && !remote.error && <Button icon="create-outline" label={`Edit ${module.singular.toLowerCase()}`} onPress={() => navigation.navigate('Edit', { module: module.id, row })} />}
+    {module.edit && canWrite(module, role, true) && !row.payrollBatchId && !remote.loading && !remote.error && <Button icon="create-outline" label={`Edit ${module.singular.toLowerCase()}`} onPress={() => navigation.navigate('Edit', { module: module.id, row })} />}
     {row.payrollBatchId && <Text style={s.caption}>This salary expense is linked to payroll and cannot be edited as a regular expense.</Text>}
     {['expenses', 'deposits'].includes(module.id) && <Button secondary icon="share-outline" label="Share transaction summary" onPress={() => void Share.share({ message: `${recordTitle(module.id, row)}\n${row.expenseId || row.depositId}\n${shortDate(recordDate(row))}\n${currency(recordAmount(row) || 0)}\n${row.invoiceNumber ? `Invoice: ${row.invoiceNumber}` : row.referenceNumber ? `Reference: ${row.referenceNumber}` : ''}` }).catch(() => setError('Could not open sharing.'))} />}
     <Panel>
-      {module.fields.filter(field => !field.admin || role === 'admin').map(field => {
+      {module.fields.filter(field => (!field.admin || role === 'admin') && !(field.key === 'occurredAt' && String(row.type).startsWith('attendance'))).map(field => {
         let value = row[field.key]
         if (field.type === 'image') return value ? <Image key={field.key} source={{ uri: String(value) }} accessibilityLabel={field.label} style={{ width: 96, height: 96, borderRadius: 20, marginBottom: 12 }} /> : <RowValue key={field.key} label={field.label} value="No image" />
         if (field.lookup) value = row[field.key.replace(/Id$/, '')]?.name || (value ? 'Linked record' : null)
@@ -62,7 +63,7 @@ export function DetailScreen({ route, navigation }: NativeStackScreenProps<RootS
     {module.id === 'payslips' && <><Panel><NativeField field={{ key: 'paymentReference', label: 'UTR / payment reference' }} value={reference} disabled={busy} onChange={setReference} /><Button label="Save reference" busy={busy} disabled={reference.length > 60} onPress={() => void mutate(`/employees/payslips/${row.id}/payment-reference`, { paymentReference: reference.trim() })} /><Text style={s.caption}>Maximum 60 characters.</Text></Panel><Button secondary icon="share-outline" label="Share payslip summary" onPress={() => void Share.share({ message: `${row.slipId}\n${row.employee?.name}\n${shortDate(row.periodStart)} – ${shortDate(row.periodEnd)}\nEarnings: ${currency(row.totalEarnings)}\nDeductions: ${currency(row.totalDeductions)}\nNet pay: ${currency(row.netPay)}\nPayment reference: ${row.paymentUtr || 'Not entered'}` }).catch(() => setError('Could not open sharing.'))} /></>}
     {module.id === 'leave' && role === 'admin' && row.status === 'pending' && <><Button label="Approve leave" busy={busy} onPress={() => status('approved')} /><Button secondary label="Reject leave" disabled={busy} onPress={() => status('rejected')} /></>}
     {module.id === 'milestones' && row.status !== 'complete' && <Button label="Mark complete" busy={busy} onPress={() => status('complete')} />}
-    {module.id === 'taskboard' && role === 'admin' && <Panel>{['open', 'in_progress', 'blocked', 'complete'].filter(value => value !== row.status).map(value => <Button key={value} secondary label={`Move to ${human(value)}`} busy={busy} onPress={() => status(value)} />)}</Panel>}
+    {module.id === 'taskboard' && role === 'admin' && <Panel>{['backlog', 'todo', 'in_progress', 'review', 'blocked', 'done'].filter(value => value !== row.status).map(value => <Button key={value} secondary label={`Move to ${human(value)}`} busy={busy} onPress={() => status(value)} />)}</Panel>}
     {module.id === 'automation' && <Button busy={busy} label={row.status === 'active' ? 'Pause rule' : 'Activate rule'} onPress={() => status(row.status === 'active' ? 'paused' : 'active')} />}
     {module.id === 'insights' && row.id && row.status !== 'resolved' && <Button label="Resolve insight" busy={busy} onPress={() => status('resolved')} />}
     {module.deleteLabel && role === 'admin' && !row.payrollBatchId && <Button secondary disabled={busy} label={module.deleteLabel} onPress={() => Alert.alert(`${module.deleteLabel}?`, 'This changes the record in your shared workspace.', [{ text: 'Keep record', style: 'cancel' }, { text: module.deleteLabel, style: 'destructive', onPress: () => void mutate(`${module.endpoint}/${row.id}`, {}, 'DELETE') }])} />}

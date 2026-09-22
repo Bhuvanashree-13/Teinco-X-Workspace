@@ -4,10 +4,12 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import { useAuth } from '../auth/AuthContext'
 import { useRemote } from '../hooks/useRemote'
 import { useMobileTheme, colors, currency, shortDate, themedStyles } from '../theme'
-import { allowedModule, canWrite, dateKey, moduleById, recordAmount, recordDate, recordSubtitle, recordTitle, type Row } from './domain'
+import { allowedModule, canWrite, dateKey, human, moduleById, recordAmount, recordDate, recordSubtitle, recordTitle, type Row } from './domain'
 import { Button, Chips, Empty, Icon, LoadState, Panel, Search, Tag, s } from './Ui'
+import { AttendanceClock } from './AttendanceClock'
 import { NativeField } from './Fields'
 import type { RootStack } from './navigation'
+import { ProjectLogo } from './ProjectLogo'
 
 export function RecordsScreen({ route, navigation }: NativeStackScreenProps<RootStack, 'Records'>) {
   useMobileTheme()
@@ -31,33 +33,46 @@ export function RecordsScreen({ route, navigation }: NativeStackScreenProps<Root
   const remote = useRemote<any>(allowedModule(module.id, role) ? `${module.endpoint}?${params}` : null)
   const records: Row[] = module.listKey ? remote.data?.[module.listKey] || [] : Array.isArray(remote.data) ? remote.data : []
   const filtered = module.id === 'expenses' ? records : records.filter(row => `${recordTitle(module.id, row)} ${recordSubtitle(module.id, row)} ${row.referenceNumber || ''} ${row.status || ''}`.toLowerCase().includes(search.toLowerCase()))
+  const descriptions: Record<string, string> = {
+    vendors: 'Your company contacts, all in one place.',
+    subscriptions: 'Keep track of services, costs and renewal dates.',
+    taskboard: 'Keep priorities clear and work moving.',
+  }
   if (!allowedModule(module.id, role)) return <Empty title="Admin access required" message="This module is restricted to administrators." />
   return <View style={s.page}>
     <FlatList data={filtered} keyExtractor={(row, index) => String(row.id ?? row.employeeId ?? row.insightId ?? index)} keyboardShouldPersistTaps="handled" contentContainerStyle={[s.content, { paddingBottom: 110 }]} refreshing={remote.loading} onRefresh={remote.refresh}
       ListHeaderComponent={<View style={{ gap: 14, marginBottom: 6 }}>
-        <View><Text style={s.title}>{module.title}</Text><Text style={s.caption}>{module.id === 'expenses' ? `${remote.data?.total ?? '…'} matching transactions` : `${filtered.length} records`}{module.id === 'events' ? ' · next 90 days' : ''}</Text></View>
-        {module.id === 'deposits' && remote.data && <View style={styles.summary}><Text style={styles.summaryLabel}>TOTAL RECEIVED · SELECTED PERIOD</Text><Text style={styles.summaryValue}>{currency(remote.data.totalReceived)}</Text></View>}
+        <View><Text style={s.title}>{module.title}</Text>{descriptions[module.id] && <Text style={s.caption}>{descriptions[module.id]}</Text>}<Text style={[s.caption, { fontSize: 12, fontWeight: '600' }]}>{module.id === 'expenses' ? `${remote.data?.total ?? '…'} matching transactions` : `${filtered.length} records`}{module.id === 'events' ? ' · next 90 days' : ''}</Text></View>
+        {module.id === 'deposits' && remote.data && <View style={styles.summary}><Text style={styles.summaryLabel}>Received in this period</Text><Text style={styles.summaryValue}>{currency(remote.data.totalReceived)}</Text></View>}
+        {module.id === 'attendance' && role === 'employee' && <AttendanceClock />}
         <Search value={search} onChangeText={value => { setSearch(value); setPage(1) }} placeholder={`Search ${module.title.toLowerCase()}`} />
         {module.id === 'expenses' && <Button secondary icon="options-outline" label={showFilters ? 'Hide filters' : `Filters${category || vendor ? ' applied' : ''}`} onPress={() => setShowFilters(value => !value)} />}
         {module.id === 'expenses' && showFilters && <><NativeField field={{ key: 'category', label: 'Category', type: 'select', lookup: '/categories' }} value={category} onChange={value => { setCategory(value); setPage(1) }} /><NativeField field={{ key: 'vendor', label: 'Vendor', type: 'select', lookup: '/vendors' }} value={vendor} onChange={value => { setVendor(value); setPage(1) }} /></>}
         {module.id === 'taskboard' && <Chips value={period} onChange={setPeriod} items={[{ id: 'all', label: 'All' }, { id: 'backlog', label: 'Backlog' }, { id: 'todo', label: 'To do' }, { id: 'in_progress', label: 'In progress' }, { id: 'blocked', label: 'Blocked' }, { id: 'done', label: 'Done' }]} />}
         {module.id === 'subscriptions' && <Chips value={statusFilter} onChange={setStatusFilter} items={[{ id: 'active', label: 'Active' }, { id: 'cancelled', label: 'Cancelled' }, { id: 'all', label: 'All' }]} />}
         {['expenses', 'deposits'].includes(module.id) && !route.params.query && <Chips value={period} onChange={value => { setPeriod(value); setPage(1) }} items={[{ id: 'all', label: 'All time' }, { id: 'month', label: 'This month' }, { id: 'year', label: 'This year' }]} />}
-        {route.params.query && <Text style={s.caption}>Showing the records linked from your workspace evidence.</Text>}
+        {route.params.query && <Text style={s.caption}>{module.id === 'taskboard' ? 'Tasks for the selected project.' : 'Showing the records linked from your workspace evidence.'}</Text>}
         {module.id === 'attendance' && <NativeField field={{ key: 'date', label: 'Attendance date', type: 'date' }} value={workDate} onChange={setWorkDate} />}
         {module.hint && <Text style={s.caption}>{module.hint}</Text>}
         {module.id === 'forecast' && remote.data?.baseline && <Panel><Text style={s.sectionTitle}>Recorded-spend baseline</Text><Text style={s.title}>{currency(remote.data.baseline.monthlyBurn)}</Text><Text style={s.caption}>Per month · {remote.data.baseline.historyCount} historical expenses</Text><Text style={s.caption}>{remote.data.baseline.method}</Text></Panel>}
         <LoadState loading={remote.loading && !remote.data} error={remote.error} retry={remote.refresh} />
       </View>}
-      ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
+      ItemSeparatorComponent={() => <View style={{ height: 12 }} />}
       ListEmptyComponent={!remote.loading && !remote.error ? <Empty title={`No ${module.title.toLowerCase()} found`} message={search ? 'Try another search.' : module.create && canWrite(module, role) ? `Tap Add to create your first ${module.singular.toLowerCase()}.` : 'Pull down to refresh your records.'} icon={module.icon} /> : null}
       renderItem={({ item }) => <Pressable accessibilityRole="button" onPress={() => navigation.navigate('Detail', { module: module.id, row: item })} style={({ pressed }) => [styles.row, pressed && { opacity: .65 }]}>
-        <View style={styles.rowTop}><View style={styles.icon}><Icon name={module.icon} size={21} /></View><View style={{ flex: 1, gap: 4 }}><Text style={styles.rowTitle} numberOfLines={2}>{recordTitle(module.id, item)}</Text><Text style={styles.rowSubtitle} numberOfLines={2}>{recordSubtitle(module.id, item) || item.expenseId || item.depositId || item.slipId || item.employeeId || 'View details'}</Text></View><Icon name="chevron-forward" size={16} color={colors.subtle} /></View>
-        <View style={styles.rowBottom}><Text style={styles.date}>{recordDate(item) ? shortDate(recordDate(item)) : item.code || ''}</Text>{recordAmount(item) !== null ? <Text style={styles.amount}>{currency(recordAmount(item)!, module.id === 'subscriptions' ? item.currency : 'INR')}</Text> : <Tag value={item.status || item.priority} />}</View>
+        <View style={styles.rowTop}>{module.id === 'projects' || module.id === 'taskboard' ? <ProjectLogo logoDataUrl={module.id === 'projects' ? item.logoDataUrl : item.project?.logoDataUrl} color={module.id === 'projects' ? item.color : item.project?.color} size={44} /> : <View style={styles.icon}><Icon name={module.icon} size={21} /></View>}<View style={{ flex: 1, gap: 4 }}><Text style={styles.rowTitle} numberOfLines={2}>{recordTitle(module.id, item)}</Text><Text style={styles.rowSubtitle} numberOfLines={2}>{recordSubtitle(module.id, item) || item.expenseId || item.depositId || item.slipId || item.employeeId || 'View details'}</Text></View><Icon name="chevron-forward" size={16} color={colors.subtle} /></View>
+        <View style={styles.rowBottom}>
+          <View style={{ flex: 1, gap: 6 }}>
+            <Text style={styles.date}>{module.id === 'subscriptions' ? 'Next billing' : module.id === 'taskboard' ? 'Due date' : module.id === 'vendors' ? 'Vendor code' : 'Date'}</Text>
+            <Text style={styles.metadata}>{module.id === 'vendors' ? item.code || '—' : recordDate(item) ? shortDate(recordDate(item)) : 'Not scheduled'}</Text>
+            {module.id === 'subscriptions' && <Tag value={item.status} />}
+          </View>
+          {recordAmount(item) !== null ? <View style={styles.price}><Text style={styles.amount}>{currency(recordAmount(item)!, module.id === 'subscriptions' ? item.currency : 'INR')}</Text>{module.id === 'subscriptions' && <Text style={styles.date}>{human(item.billingCycle)} billing</Text>}</View> : <Tag value={item.status || item.priority} />}
+        </View>
       </Pressable>}
       ListFooterComponent={module.id === 'expenses' && remote.data?.totalPages > 1 ? <View style={styles.pagination}><Button secondary disabled={page <= 1 || remote.loading} label="Previous" onPress={() => setPage(value => value - 1)} /><Text style={s.caption}>{page} / {remote.data.totalPages}</Text><Button secondary disabled={page >= remote.data.totalPages || remote.loading} label="Next" onPress={() => setPage(value => value + 1)} /></View> : null}
     />
     {module.create && canWrite(module, role) && <Pressable accessibilityRole="button" accessibilityLabel={`Add ${module.singular.toLowerCase()}`} onPress={() => navigation.navigate('Edit', { module: module.id })} style={styles.fab}><Icon name="add" color={colors.onPrimary} size={25} /><Text style={styles.fabText}>Add {module.singular.toLowerCase()}</Text></Pressable>}
   </View>
 }
-const styles = themedStyles(() => ({ row: { backgroundColor: colors.surface, borderRadius: 20, padding: 16, gap: 14, borderWidth: 1, borderColor: colors.border }, rowTop: { flexDirection: 'row', alignItems: 'center', gap: 12 }, icon: { width: 44, height: 44, borderRadius: 15, backgroundColor: colors.softBlue, alignItems: 'center', justifyContent: 'center' }, rowTitle: { color: colors.ink, fontWeight: '700', fontSize: 15, lineHeight: 21 }, rowSubtitle: { color: colors.muted, fontSize: 12 }, rowBottom: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border, paddingTop: 12 }, amount: { fontSize: 17, color: colors.ink, fontWeight: '700' }, date: { color: colors.muted, fontSize: 12, flexShrink: 1 }, summary: { backgroundColor: colors.hero, padding: 24, borderRadius: 24, gap: 10 }, summaryLabel: { color: colors.heroText, fontSize: 10, fontWeight: '700', letterSpacing: 1 }, summaryValue: { color: colors.heroText, fontSize: 31, fontWeight: '700' }, fab: { position: 'absolute', bottom: 20, right: 20, minHeight: 56, paddingHorizontal: 21, borderRadius: 28, backgroundColor: colors.accent, flexDirection: 'row', alignItems: 'center', gap: 9, elevation: 5 }, fabText: { color: colors.onPrimary, fontWeight: '700', fontSize: 14 }, pagination: { marginTop: 22, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 } }))
+const styles = themedStyles(() => ({ metadata: { color: colors.ink, fontSize: 13, lineHeight: 20, fontWeight: '500' }, price: { flexShrink: 1, alignItems: 'flex-end', gap: 5 }, row: { backgroundColor: colors.surface, borderRadius: 22, padding: 20, gap: 16, borderWidth: 1, borderColor: colors.border }, rowTop: { flexDirection: 'row', alignItems: 'center', gap: 12 }, icon: { width: 44, height: 44, borderRadius: 15, backgroundColor: colors.softBlue, alignItems: 'center', justifyContent: 'center' }, rowTitle: { color: colors.ink, fontWeight: '700', fontSize: 16, lineHeight: 23 }, rowSubtitle: { color: colors.muted, fontSize: 13, lineHeight: 20 }, rowBottom: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border, paddingTop: 12 }, amount: { fontSize: 20, color: colors.ink, fontWeight: '700', fontVariant: ['tabular-nums'], letterSpacing: -.4 }, date: { color: colors.muted, fontSize: 12, flexShrink: 1 }, summary: { backgroundColor: colors.hero, padding: 24, borderRadius: 24, gap: 10 }, summaryLabel: { color: colors.heroText, fontSize: 13, fontWeight: '700', letterSpacing: 1 }, summaryValue: { color: colors.heroText, fontSize: 31, fontWeight: '700' }, fab: { position: 'absolute', bottom: 20, right: 20, minHeight: 56, paddingHorizontal: 21, borderRadius: 28, backgroundColor: colors.primary, flexDirection: 'row', alignItems: 'center', gap: 9, elevation: 5 }, fabText: { color: colors.onPrimary, fontWeight: '700', fontSize: 14 }, pagination: { marginTop: 22, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 } }))

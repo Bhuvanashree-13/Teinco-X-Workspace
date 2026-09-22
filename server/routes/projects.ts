@@ -8,6 +8,7 @@ router.use(requireAuth)
 const statuses = ['backlog', 'todo', 'in_progress', 'review', 'blocked', 'done'] as const
 const priorities = ['lowest', 'low', 'medium', 'high', 'highest'] as const
 const types = ['epic', 'story', 'task', 'bug'] as const
+export const taskAssigneeFor = (role: string, employeeId: number | null | undefined, requestedAssigneeId: number | null | undefined) => role === 'admin' ? requestedAssigneeId : employeeId
 const issueSchema = z.object({
   projectId: z.number().int().positive(), type: z.enum(types).default('task'), summary: z.string().trim().min(2).max(180),
   description: z.string().trim().max(10000).nullable().optional(), status: z.enum(statuses).default('backlog'), priority: z.enum(priorities).default('medium'),
@@ -16,10 +17,10 @@ const issueSchema = z.object({
 }).strict()
 const projectLogo = z.string().max(1_500_000).regex(/^data:image\/(png|jpe?g|webp);base64,[a-z0-9+/=\r\n]+$/i).nullable().optional()
 const projectSchema = z.object({ code: z.string().trim().max(20).optional(), name: z.string().trim().min(2).max(160), description: z.string().max(5000).nullable().optional(), logoDataUrl: projectLogo, status: z.enum(['active', 'paused', 'completed', 'archived']).default('active'), startDate: z.coerce.date().nullable().optional(), endDate: z.coerce.date().nullable().optional(), budget: z.number().min(0).optional(), color: z.string().regex(/^#[0-9a-f]{6}$/i).default('#6366f1') }).strict()
-const includeIssue = { project: { select: { id: true, code: true, name: true, color: true } }, assignee: { select: { id: true, employeeId: true, name: true } }, reporter: { select: { id: true, name: true, email: true } }, comments: { orderBy: { createdAt: 'asc' as const }, include: { author: { select: { id: true, name: true, email: true } } } }, activities: { orderBy: { createdAt: 'desc' as const }, take: 30 } }
+const includeIssue = { project: { select: { id: true, code: true, name: true, color: true, logoDataUrl: true } }, assignee: { select: { id: true, employeeId: true, name: true } }, reporter: { select: { id: true, name: true, email: true } }, comments: { orderBy: { createdAt: 'asc' as const }, include: { author: { select: { id: true, name: true, email: true } } } }, activities: { orderBy: { createdAt: 'desc' as const }, take: 30 } }
 
 router.get('/', async (_req, res) => {
-  try { res.json(await prisma.project.findMany({ orderBy: { name: 'asc' }, include: { _count: { select: { workItems: true } } } })) }
+  try { res.json(await prisma.project.findMany({ orderBy: [{ displayOrder: 'asc' }, { name: 'asc' }], include: { _count: { select: { workItems: true } } } })) }
   catch { res.status(500).json({ error: 'Failed to load projects' }) }
 })
 router.get('/issues', async (req, res) => {
@@ -31,17 +32,27 @@ router.get('/issues', async (req, res) => {
     res.json(await prisma.workItem.findMany({ where: { ...(projectId ? { projectId } : {}), ...(status ? { status } : {}) }, include: includeIssue, orderBy: [{ updatedAt: 'desc' }], take: 500 }))
   } catch { res.status(500).json({ error: 'Failed to load work items' }) }
 })
+router.get('/issues/:issueId', async (req, res) => {
+  const id = Number(req.params.issueId)
+  if (!Number.isSafeInteger(id) || id < 1) return res.status(400).json({ error: 'Invalid work item' })
+  try {
+    const item = await prisma.workItem.findUnique({ where: { id }, include: includeIssue })
+    if (!item) return res.status(404).json({ error: 'Work item not found' })
+    res.json(item)
+  } catch { res.status(500).json({ error: 'Failed to load work item' }) }
+})
 router.post('/issues', async (req: AuthedRequest, res) => {
-  if (req.user?.role !== 'admin') return res.status(403).json({ error: 'Admin access required' })
   const parsed = issueSchema.safeParse(req.body)
   if (!parsed.success) return res.status(400).json({ error: parsed.error.issues.map(issue => `${issue.path.join('.') || 'work item'}: ${issue.message}`).join(' ') })
+  if (req.user?.role !== 'admin' && !req.user?.employeeId) return res.status(403).json({ error: 'Your account needs a linked employee profile' })
   try {
     const project = await prisma.project.findUnique({ where: { id: parsed.data.projectId }, select: { code: true } })
     if (!project) return res.status(404).json({ error: 'Project not found' })
     const item = await prisma.$transaction(async db => {
       const sequence = await db.project.update({ where: { id: parsed.data.projectId }, data: { issueSequence: { increment: 1 } }, select: { issueSequence: true } })
       const key = `${project.code.replace(/[^A-Z0-9]/gi, '').toUpperCase().slice(0, 10)}-${sequence.issueSequence}`
-      return db.workItem.create({ data: { ...parsed.data, key, reporterId: req.user!.userId, resolvedAt: parsed.data.status === 'done' ? new Date() : null, activities: { create: { actorId: req.user!.userId, action: 'created', details: `Created as ${parsed.data.type}` } } }, include: includeIssue })
+      const data = { ...parsed.data, assigneeId: taskAssigneeFor(req.user!.role, req.user!.employeeId, parsed.data.assigneeId) }
+      return db.workItem.create({ data: { ...data, key, reporterId: req.user!.userId, resolvedAt: data.status === 'done' ? new Date() : null, activities: { create: { actorId: req.user!.userId, action: 'created', details: `Created as ${data.type}` } } }, include: includeIssue })
     })
     res.status(201).json(item)
   } catch { res.status(500).json({ error: 'Failed to create work item' }) }
@@ -71,6 +82,16 @@ router.delete('/issues/:issueId', requireAdmin, async (req, res) => {
   const id = Number(req.params.issueId)
   if (!Number.isInteger(id)) return res.status(400).json({ error: 'Invalid work item' })
   try { await prisma.workItem.delete({ where: { id } }); res.json({ success: true }) } catch { res.status(404).json({ error: 'Work item not found' }) }
+})
+router.put('/order', requireAdmin, async (req, res) => {
+  const parsed = z.object({ projectIds: z.array(z.number().int().positive()).min(1).max(500) }).strict().safeParse(req.body)
+  if (!parsed.success || new Set(parsed.data.projectIds).size !== parsed.data.projectIds.length) return res.status(400).json({ error: 'Enter a valid project order' })
+  try {
+    const count = await prisma.project.count({ where: { id: { in: parsed.data.projectIds } } })
+    if (count !== parsed.data.projectIds.length) return res.status(400).json({ error: 'One or more projects were not found' })
+    await prisma.$transaction(parsed.data.projectIds.map((id, displayOrder) => prisma.project.update({ where: { id }, data: { displayOrder } })))
+    res.json({ success: true })
+  } catch { res.status(500).json({ error: 'Could not save project order' }) }
 })
 router.get('/:id', async (req, res) => {
   const id = Number(req.params.id)

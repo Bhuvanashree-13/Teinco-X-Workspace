@@ -2,6 +2,7 @@
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <queries>
       <intent><action android:name="android.speech.RecognitionService" /></intent>
@@ -19,6 +20,7 @@
       android:supportsRtl="true">
       <activity
         android:name=".MainActivity"
+        android:theme="@style/LaunchTheme"
         android:label="@string/app_name"
         android:configChanges="keyboard|keyboardHidden|orientation|screenLayout|screenSize|smallestScreenSize|uiMode"
         android:launchMode="singleTask"

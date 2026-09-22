@@ -1,11 +1,18 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native'
-import { Card, PageTitle, Screen } from '../components/Ui'
+import { Alert, ScrollView, Text, View } from 'react-native'
 import { useAuth } from '../auth/AuthContext'
-import { themedStyles, useMobileTheme, colors } from '../theme'
+import { colors, useMobileTheme } from '../theme'
+import { APP_VERSION } from '../update-version'
+import { Button, Icon, Panel, RowValue, s } from '../native/Ui'
 export function AccountScreen() {
   useMobileTheme()
-
-  const { user, serverUrl, logout } = useAuth(); const initials = (user?.name || user?.email || 'TX').split(/\s+/).map(v => v[0]).join('').slice(0, 2).toUpperCase()
-  return <Screen><PageTitle title="Account" subtitle="Your profile and workspace session." /><Card><View style={styles.profile}><View style={styles.avatar}><Text style={styles.initials}>{initials}</Text></View><View style={styles.flex}><Text style={styles.name}>{user?.name || 'Teinco-X user'}</Text><Text style={styles.email}>{user?.email}</Text><View style={styles.role}><Text style={styles.roleText}>{user?.role}</Text></View></View></View></Card><Card><Text style={styles.label}>CONNECTED BACKEND</Text><Text style={styles.server}>{serverUrl}</Text><Text style={styles.note}>Your changes sync securely with your company workspace. Teinco-X 2.0.0.</Text></Card><Pressable onPress={() => void logout()} style={({ pressed }) => [styles.button, pressed && styles.pressed]}><Text style={styles.buttonText}>Sign out</Text></Pressable></Screen>
+  const { user, logout } = useAuth()
+  return <ScrollView style={s.page} contentContainerStyle={s.content}>
+    <View style={{ alignItems: 'center', paddingVertical: 24, gap: 12 }}>
+      <View style={{ width: 80, height: 80, borderRadius: 40, backgroundColor: colors.softGreen, alignItems: 'center', justifyContent: 'center' }}><Icon name="person-outline" size={34} /></View>
+      <Text style={[s.title, { textAlign: 'center' }]}>{user?.name || 'Your account'}</Text><Text style={s.caption}>{user?.email}</Text>
+    </View>
+    <Panel><RowValue label="Workspace" value="Teinco-X" /><RowValue label="Access" value={user?.role === 'admin' ? 'Administrator' : 'Employee'} /><RowValue label="App version" value={APP_VERSION} /></Panel>
+    <Panel><Text style={s.sectionTitle}>Your work, connected.</Text><Text style={s.caption}>Your changes sync with your company workspace. Sign in with your work account to pick up where you left off.</Text></Panel>
+    <Button danger label="Sign out" icon="log-out-outline" onPress={() => Alert.alert('Sign out?', 'You can sign back in with your work account.', [{ text: 'Stay signed in', style: 'cancel' }, { text: 'Sign out', style: 'destructive', onPress: () => void logout() }])} />
+  </ScrollView>
 }
-const styles = themedStyles(() => ({ profile: { flexDirection: 'row', alignItems: 'center' }, avatar: { width: 56, height: 56, borderRadius: 18, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center', marginRight: 14 }, initials: { color: colors.onPrimary, fontWeight: '700', fontSize: 18 }, flex: { flex: 1 }, name: { color: colors.ink, fontWeight: '700', fontSize: 17 }, email: { color: colors.muted, fontSize: 13, marginTop: 4 }, role: { alignSelf: 'flex-start', backgroundColor: colors.softBlue, borderRadius: 20, paddingHorizontal: 8, paddingVertical: 4, marginTop: 8 }, roleText: { color: colors.primary, fontWeight: '700', fontSize: 10, textTransform: 'uppercase' }, label: { color: colors.muted, fontSize: 11, fontWeight: '700', letterSpacing: .6 }, server: { color: colors.ink, fontSize: 14, fontWeight: '700', marginTop: 9 }, note: { color: colors.muted, fontSize: 12, lineHeight: 18, marginTop: 8 }, button: { height: 50, borderRadius: 13, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.softDanger, justifyContent: 'center', alignItems: 'center' }, pressed: { opacity: .7 }, buttonText: { color: colors.danger, fontWeight: '700' } }))

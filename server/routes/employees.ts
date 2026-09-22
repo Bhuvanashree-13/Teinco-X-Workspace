@@ -11,12 +11,28 @@ const PENDING_EMPLOYEE_PASSWORD_PREFIX = 'pending-employee-password:'
 
 const toNumber = (value: unknown) => Number(value) || 0
 const MONTHLY_LEAVE_ALLOWANCE = 2
+const ATTENDANCE_TIMEZONE = 'Asia/Kolkata'
+const istParts = (value: Date) => Object.fromEntries(new Intl.DateTimeFormat('en-CA', {
+  timeZone: ATTENDANCE_TIMEZONE,
+  year: 'numeric', month: '2-digit', day: '2-digit',
+  hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23',
+}).formatToParts(value).filter(part => part.type !== 'literal').map(part => [part.type, part.value]))
+const attendanceClock = (instant = new Date()) => {
+  const parts = istParts(instant)
+  const day = `${parts.year}-${parts.month}-${parts.day}`
+  return {
+    instant,
+    workDate: new Date(`${day}T00:00:00.000Z`),
+    istTimestamp: `${day}T${parts.hour}:${parts.minute}:${parts.second}.${String(instant.getUTCMilliseconds()).padStart(3, '0')}+05:30`,
+  }
+}
+const formatAttendanceIst = (value: string | Date) => `${new Intl.DateTimeFormat('en-IN', { timeZone: ATTENDANCE_TIMEZONE, day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' }).format(new Date(value))} IST`
 const leaveCycle = (date = new Date()) => {
   const year = date.getFullYear()
   if (year === 2026) return { start: new Date(2026, 8, 1), end: new Date(2026, 11, 31, 23, 59, 59, 999), label: 'September–December 2026' }
   return { start: startOfYear(date), end: endOfYear(date), label: `January–December ${year}` }
 }
-const ensureMonthlyLeaveLimit = async (employeeId: number, startDate: Date, endDate: Date, days: number, excludeId?: number) => {
+export const ensureMonthlyLeaveLimit = async (employeeId: number, startDate: Date, endDate: Date, days: number, excludeId?: number) => {
   const cycle = leaveCycle(startDate)
   if (startDate < cycle.start || endDate > cycle.end || startDate.getFullYear() !== endDate.getFullYear() || startDate.getMonth() !== endDate.getMonth()) throw new Error(`Paid leave must be within one month of the ${cycle.label} leave cycle.`)
   if (!Number.isFinite(days) || days <= 0 || days > MONTHLY_LEAVE_ALLOWANCE) throw new Error(`Paid leave is limited to ${MONTHLY_LEAVE_ALLOWANCE} days per month.`)
@@ -38,12 +54,11 @@ const serializeLeave = (request: any) => ({
 })
 
 const serializeAttendance = (log: any) => ({
-  ...log,
-  regularHours: toNumber(log.regularHours),
-  overtimeHours: toNumber(log.overtimeHours),
+  id: log.id, employeeId: log.employeeId, workDate: log.workDate,
+  workMode: log.workMode, geoFenceStatus: log.geoFenceStatus, status: log.status,
+  checkedIn: Boolean(log.checkIn), checkedOut: Boolean(log.checkOut),
   employee: log.employee ? serializeEmployee(log.employee) : log.employee,
 })
-
 const serializePayrollBatch = (batch: any) => ({
   ...batch,
   grossPay: toNumber(batch.grossPay),
@@ -486,8 +501,11 @@ router.put('/leave/:id/status', requireAdmin, async (req, res) => {
 
 router.get('/attendance', async (req: AuthedRequest, res) => {
   try {
-    const workDate = req.query.date ? new Date(`${req.query.date}T00:00:00`) : new Date()
-    const where: any = { workDate: { gte: startOfDay(workDate), lte: endOfDay(workDate) } }
+    const day = req.query.date || new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Kolkata' })
+    if (typeof day !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(day)) return res.status(400).json({ error: 'Invalid attendance date.' })
+    const workDate = new Date(`${day}T00:00:00Z`)
+    if (!Number.isFinite(workDate.getTime()) || workDate.toISOString().slice(0, 10) !== day) return res.status(400).json({ error: 'Invalid attendance date.' })
+    const where: any = { workDate: { gte: workDate, lt: new Date(workDate.getTime() + 86400000) } }
     if (!isAdmin(req)) {
       const employeeId = requireLinkedEmployee(req, res)
       if (!employeeId) return
@@ -505,72 +523,51 @@ router.get('/attendance', async (req: AuthedRequest, res) => {
   }
 })
 
-router.post('/attendance', async (req: AuthedRequest, res) => {
-  try {
-    const data = req.body
-    const employeeId = isAdmin(req) ? Number(data.employeeId) : requireLinkedEmployee(req, res)
-    if (!employeeId) return
-    const workDate = startOfDay(new Date(data.workDate))
-    const log = await prisma.attendanceLog.upsert({
-      where: { employeeId_workDate: { employeeId, workDate } },
-      update: {
-        checkIn: data.checkIn ? new Date(data.checkIn) : null,
-        checkOut: data.checkOut ? new Date(data.checkOut) : null,
-        workMode: data.workMode || 'office',
-        geoFenceStatus: data.geoFenceStatus || 'not_required',
-        regularHours: Number(data.regularHours) || 0,
-        overtimeHours: Number(data.overtimeHours) || 0,
-        status: data.status || 'present',
-        notes: data.notes || null,
-      },
-      create: {
-        employeeId,
-        workDate,
-        checkIn: data.checkIn ? new Date(data.checkIn) : null,
-        checkOut: data.checkOut ? new Date(data.checkOut) : null,
-        workMode: data.workMode || 'office',
-        geoFenceStatus: data.geoFenceStatus || 'not_required',
-        regularHours: Number(data.regularHours) || 0,
-        overtimeHours: Number(data.overtimeHours) || 0,
-        status: data.status || 'present',
-        notes: data.notes || null,
-      },
-      include: { employee: true },
-    })
-    res.json(serializeAttendance(log))
-  } catch (error) {
-    console.error('Create attendance error:', error)
-    res.status(500).json({ error: 'Failed to record attendance' })
-  }
+// Attendance can only be recorded by an employee using explicit clock actions.
+router.post('/attendance', (_req, res) => {
+  res.status(403).json({ error: 'Manual attendance entry is disabled. Employees must use Check-in or Check-out.' })
 })
 
 router.post('/attendance/clock', async (req: AuthedRequest, res) => {
+  if (req.user?.role !== 'employee') return res.status(403).json({ error: 'Only employees can record their own attendance.' })
+  const employeeId = requireLinkedEmployee(req, res)
+  if (!employeeId) return
+  const action = req.body?.action
+  // Accept but ignore GPS fields from older clients.
+  if (!['check_in', 'check_out'].includes(action) || Object.keys(req.body || {}).some(key => !['action', 'latitude', 'longitude', 'accuracy'].includes(key))) {
+    return res.status(400).json({ error: 'Select check-in or check-out. Timestamps are recorded by the server.' })
+  }
   try {
-    const employeeId = requireLinkedEmployee(req, res)
-    if (!employeeId) return
-    const now = new Date(), workDate = startOfDay(now)
-    const existing = await prisma.attendanceLog.findUnique({ where: { employeeId_workDate: { employeeId, workDate } } })
-    if (!existing) {
-      const log = await prisma.attendanceLog.create({ data: { employeeId, workDate, checkIn: now, workMode: 'office', status: 'present' }, include: { employee: true } })
-      await prisma.auditLog.create({ data: { action: 'attendance_checked_in', entityType: 'attendance', entityId: String(log.id), userId: req.user?.userId, newValue: JSON.stringify({ employeeName: log.employee.name, occurredAt: now.toISOString() }) } })
-      return res.status(201).json({ action: 'checked_in', log: serializeAttendance(log) })
-    }
-    if (existing.checkOut) return res.status(409).json({ error: 'You have already checked out for today.' })
-    if (!existing.checkIn) {
-      const log = await prisma.attendanceLog.update({ where: { id: existing.id }, data: { checkIn: now, status: 'present' }, include: { employee: true } })
-      await prisma.auditLog.create({ data: { action: 'attendance_checked_in', entityType: 'attendance', entityId: String(log.id), userId: req.user?.userId, newValue: JSON.stringify({ employeeName: log.employee.name, occurredAt: now.toISOString() }) } })
-      return res.json({ action: 'checked_in', log: serializeAttendance(log) })
-    }
-    const regularHours = Math.round(((now.getTime() - existing.checkIn.getTime()) / 3600000) * 100) / 100
-    const log = await prisma.attendanceLog.update({ where: { id: existing.id }, data: { checkOut: now, regularHours, status: 'present' }, include: { employee: true } })
-    await prisma.auditLog.create({ data: { action: 'attendance_checked_out', entityType: 'attendance', entityId: String(log.id), userId: req.user?.userId, newValue: JSON.stringify({ employeeName: log.employee.name, occurredAt: now.toISOString(), regularHours }) } })
-    res.json({ action: 'checked_out', log: serializeAttendance(log) })
-  } catch (error) {
+    const clock = attendanceClock()
+    const { instant: now, workDate, istTimestamp } = clock
+    const result = await prisma.$transaction(async db => {
+      let log = await db.attendanceLog.findUnique({ where: { employeeId_workDate: { employeeId, workDate } }, include: { employee: true } })
+      if (action === 'check_in') {
+        if (log?.checkIn || log?.checkOut) throw new Error('ATTENDANCE_CONFLICT')
+        if (!log) {
+          log = await db.attendanceLog.create({ data: { employeeId, workDate, checkIn: now, checkInIst: istTimestamp, timezone: ATTENDANCE_TIMEZONE, workMode: 'office', geoFenceStatus: 'not_required', status: 'present' }, include: { employee: true } })
+        } else {
+          const changed = await db.attendanceLog.updateMany({ where: { id: log.id, checkIn: null, checkOut: null }, data: { checkIn: now, checkInIst: istTimestamp, timezone: ATTENDANCE_TIMEZONE, workMode: 'office', geoFenceStatus: 'not_required', status: 'present' } })
+          if (!changed.count) throw new Error('ATTENDANCE_CONFLICT')
+          log = await db.attendanceLog.findUniqueOrThrow({ where: { id: log.id }, include: { employee: true } })
+        }
+      } else {
+        if (!log?.checkIn || log.checkOut) throw new Error('ATTENDANCE_CONFLICT')
+        const regularHours = Math.max(0, Math.round((now.getTime() - log.checkIn.getTime()) / 3600000 * 100) / 100)
+        const changed = await db.attendanceLog.updateMany({ where: { id: log.id, checkOut: null, checkIn: log.checkIn }, data: { checkOut: now, checkOutIst: istTimestamp, timezone: ATTENDANCE_TIMEZONE, regularHours, geoFenceStatus: 'not_required', status: 'present' } })
+        if (!changed.count) throw new Error('ATTENDANCE_CONFLICT')
+        log = await db.attendanceLog.findUniqueOrThrow({ where: { id: log.id }, include: { employee: true } })
+      }
+      await db.auditLog.create({ data: { action: action === 'check_in' ? 'attendance_checked_in' : 'attendance_checked_out', entityType: 'attendance', entityId: String(log.id), userId: req.user!.userId, newValue: JSON.stringify({ employeeName: log.employee.name, occurredAtIst: istTimestamp, timezone: ATTENDANCE_TIMEZONE, geoFenceStatus: 'not_required' }) } })
+      return log
+    })
+    res.json({ action: action === 'check_in' ? 'checked_in' : 'checked_out', log: serializeAttendance(result) })
+  } catch (error: any) {
+    if (error.message === 'ATTENDANCE_CONFLICT' || error.code === 'P2002' || error.code === 'P2034') return res.status(409).json({ error: 'Attendance has changed or this action is not available. Refresh before trying again.' })
     console.error('Attendance clock error:', error)
-    res.status(500).json({ error: 'Could not record your attendance time.' })
+    res.status(500).json({ error: 'Could not record attendance. Refresh before trying again.' })
   }
 })
-
 router.get('/notifications', requireAdmin, async (_req, res) => {
   try {
     const today = new Date()
@@ -584,7 +581,8 @@ router.get('/notifications', requireAdmin, async (_req, res) => {
     const clockNotifications = attendanceEvents.map(event => {
       const details = (() => { try { return JSON.parse(event.newValue || '{}') } catch { return {} } })()
       const checkedOut = event.action === 'attendance_checked_out'
-      return { id: `clock-${event.id}`, type: checkedOut ? 'attendance_checked_out' : 'attendance_checked_in', title: `${details.employeeName || 'Employee'} checked ${checkedOut ? 'out' : 'in'}`, message: checkedOut ? `${Number(details.regularHours || 0).toFixed(2)} hours recorded` : 'Attendance check-in recorded', status: 'new', occurredAt: event.createdAt, employeeName: details.employeeName || 'Employee' }
+      const exactTimestamp = details.occurredAtIst || event.createdAt
+      return { id: `clock-${event.id}`, type: checkedOut ? 'attendance_checked_out' : 'attendance_checked_in', title: `${details.employeeName || 'Employee'} checked ${checkedOut ? 'out' : 'in'}`, message: `${checkedOut ? 'Check-out' : 'Check-in'}: ${formatAttendanceIst(exactTimestamp)}`, status: 'new', occurredAt: exactTimestamp, timestampIst: exactTimestamp, employeeName: details.employeeName || 'Employee' }
     })
     const notifications = [
       ...clockNotifications,

@@ -225,7 +225,20 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() })
 })
 
+// Ship internal Android releases with the service so the update feed always
+// points to an APK that can be downloaded without a GitHub sign-in.
+app.use('/api/mobile/android/releases', express.static(path.resolve(process.cwd(), 'android-releases'), {
+  index: false,
+  dotfiles: 'deny',
+  setHeaders: res => {
+    res.setHeader('Content-Type', 'application/vnd.android.package-archive')
+    res.setHeader('Content-Disposition', 'attachment')
+    res.setHeader('X-Content-Type-Options', 'nosniff')
+  },
+}))
+
 app.get('/api/mobile/android/update', (req, res) => {
+  res.setHeader('Cache-Control', 'no-store')
   const version = process.env.ANDROID_LATEST_VERSION || '2.0.15'
   const versionCode = Number(process.env.ANDROID_LATEST_VERSION_CODE || 20)
   const downloadUrl = process.env.ANDROID_APK_URL || `https://github.com/Bhuvanashree-13/Teinco-X-Workspace/releases/download/v${version}/Teinco-X-${version}.apk`

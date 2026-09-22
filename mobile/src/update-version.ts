@@ -1,4 +1,4 @@
-export const APP_VERSION = '2.0.24'
+export const APP_VERSION = '2.1.18'
 
 export function isNewerVersion(latest: string, current: string): boolean {
   const clean = (value: string) => value.replace(/^v/i, '').split('-')[0].split('.').map(part => Number(part) || 0)
@@ -8,3 +8,5 @@ export function isNewerVersion(latest: string, current: string): boolean {
   }
   return false
 }
+
+export const shouldPromptForUpdate = (latestVersion: string, promptedVersion: string | null) => latestVersion !== promptedVersion

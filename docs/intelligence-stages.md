@@ -10,24 +10,35 @@ Validation: npm run test:intelligence; npm run build. Review actual expense evid
 
 ## Stage 2 — Vyom (implemented; model configuration required)
 
-Flow → Vyom is an admin-only, read-only question interface for month-to-date, last completed month, and year-to-date ledger facts. Each question is independent. Retrieval uses a consistent database transaction, includes all matching expense/deposit totals, and caps category/vendor rankings at 20 and largest expenses at 10. Coverage and retrieval timestamps are displayed. Citations open the expense or deposit register with the period filter, or search for the individual expense ID.
+Flow → Vyom is an admin-only, read-only conversational interface. It uses a hybrid approach: verified workspace retrieval for business data, a short-lived cached workspace context for CAG-style multi-turn analysis, and Gemini's general reasoning for stable knowledge, writing, and brainstorming outside the workspace. Retrieval uses a consistent database transaction, includes all matching expense/deposit totals, and caps category/vendor rankings at 20 and largest expenses at 10. Coverage and retrieval timestamps are displayed. Citations open the corresponding workspace records.
+
+Vyom also receives a server-authored feature map for Dashboard, Expenses, Deposits, Vendors, Subscriptions, Assets, People, Projects and Taskboard, Schedule, Analytics, Flow, and access settings. This lets it explain how a feature should be used without inventing current record values. Up to 30 open tasks are included with project, status, priority, assignee, and due date so task questions can be answered individually. Sensitive personal, compensation, payroll, authentication, banking, tax-identifier, credential, vendor-contact, and asset-serial data are excluded from model context.
+
+For detailed questions, the API performs server-controlled, read-only retrieval from an allowlist of Assets, Subscriptions, Projects, People, Vendors, and Flow automation rules. Each module is limited to 40 records per question and explicitly selects safe fields. The model cannot submit SQL, choose arbitrary tables or columns, bypass tenant/user authorization, or call a write operation.
+
+Every Vyom request creates an administrator-visible access audit containing the requesting user, conversation reference, datasets and structured filters used, record count, outcome, and whether a sensitive-field request was refused. The audit deliberately omits API keys, credentials, the full question text, and retrieved record contents.
+
+General-knowledge and feature-help questions use a minimal context and do not read business records. Workspace summaries retrieve the summary dataset explicitly. Answers, conversation messages, proposal-preparation events, and access audits are committed together so a successful answer cannot be stored without its corresponding audit; failed attempts create a failure audit when the database remains available.
+
+Vyom may draft one of three tightly validated actions: create a task, update an allowlisted set of subscription fields, or approve a pending leave request. Drafts expire after 24 hours and store an exact before/change preview. Execution requires a separate administrator approval request, revalidates the target version and business rules, atomically claims the pending proposal, and writes the executed change to the general audit log. A chat response alone never executes a proposal.
+
+The server accepts a model proposal only when the latest user message contains an explicit action verb for the matching operation. Duplicate pending proposals with the same creator, target, action, and payload are reused instead of created again. Rejections, executions, expirations, stale-record failures, and preparation events have explicit lifecycle states and audit records.
 
 The model selects relevant fact IDs using structured JSON. The server validates every ID and renders the original computed facts, not generated numbers, prose, or URLs. Requests have a 1,000-character question limit; model calls time out after 180 seconds by default and can be configured with `VYOM_TIMEOUT_MS` from 10,000 to 600,000 milliseconds; provider response bodies are capped at 64 KiB. No tool definitions, SQL generation, write operations, credentials, employee details, or arbitrary network targets are exposed to the model. Record text is untrusted data. Employees cannot access the Flow Vyom routes, even with a forged request body. This initial release does not provide employee self-service questions.
 
-Unsupported questions should return insufficient evidence. The schema and source validation guarantee that displayed facts exist; relevance selection still depends on the configured model and must be tested against your business questions. Causes, forecasts, record changes, other date ranges, attachments, subscriptions, and external ERP records are outside this release. This uses structured record retrieval, not embeddings or pgvector.
+Workspace claims without evidence and questions requiring current web information return insufficient evidence. General answers are labeled separately and must not be presented as workspace facts. The schema and source validation guarantee that cited workspace facts exist; relevance and general reasoning still depend on the configured model. Record changes, external ERP records, and live web grounding remain outside this release. This uses structured record retrieval and cached context rather than embeddings or pgvector.
 
-### Configure Ollama on the app server
+### Configure Gemini on the app server
 
-- `VYOM_OLLAMA_URL`: base URL of an Ollama server reachable from the Railway app, without `/api/chat`.
-- `VYOM_MODEL`: exact installed model name that supports structured output.
+- `GEMINI_API_KEY`: Gemini API key, stored only on the server, never in a Vite variable or Git.
+- `VYOM_GEMINI_MODEL`: optional Gemini model supporting structured output; defaults to `gemini-2.5-flash`.
 - `VYOM_TIMEOUT_MS`: optional model request timeout in milliseconds; defaults to 180,000.
-- `VYOM_API_KEY`: optional bearer token for an authenticated gateway. Store it only in server variables, never in a Vite variable or Git.
 
-Use your approved private service or an authenticated HTTPS gateway. A localhost URL on Railway refers to that container, not your laptop. The operator must approve this service to receive the question and retrieved financial facts. This implementation uses Ollama's `/api/chat` structured-output API; Ollama Cloud does not currently support structured outputs. No model is downloaded or provisioned automatically. Missing configuration leaves the question button disabled, with View available facts still usable. Configured-but-unreachable services produce an explicit error; configuration presence is not a connectivity check.
+Vyom sends each question, recent conversation history, and relevant workspace facts to Google's Gemini `generateContent` API over HTTPS. Usage billing and quotas follow the Google API project. No local model is required. Missing configuration disables questions while keeping available facts accessible. Test connection makes a real Gemini request; provider failures produce an error without exposing credentials or provider response details.
 
 Validation: `npm run test:ask`, `npm run test:intelligence`, and `npm run build`. Run a real model acceptance test after configuration: ask about totals, category/vendor rankings, largest expenses, unsupported periods and actions, and injected instructions in record names. Check relevance and citation filters as well as exact totals. Provider tests in the repository mock model replies; they are not a live-model evaluation.
 
-References: https://docs.ollama.com/api/chat and https://docs.ollama.com/capabilities/structured-outputs
+Reference: https://ai.google.dev/api/generate-content
 
 ## Stage 3 — Predictive models (not implemented)
 

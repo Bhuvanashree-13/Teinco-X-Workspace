@@ -66,7 +66,17 @@ class VyomVoiceModule(private val context: ReactApplicationContext) : ReactConte
     }
   }
   override fun onResults(results: Bundle) { emit("VyomVoiceResult", results.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull().orEmpty()) }
-  override fun onError(error: Int) { emit("VyomVoiceError", error.toString()) }
+  override fun onError(error: Int) {
+    val code = when (error) {
+      SpeechRecognizer.ERROR_AUDIO -> "ERROR_AUDIO"
+      SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "ERROR_INSUFFICIENT_PERMISSIONS"
+      SpeechRecognizer.ERROR_NO_MATCH, SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "ERROR_NO_MATCH"
+      SpeechRecognizer.ERROR_NETWORK, SpeechRecognizer.ERROR_NETWORK_TIMEOUT -> "ERROR_NETWORK"
+      SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> "ERROR_RECOGNIZER_BUSY"
+      else -> "ERROR_UNKNOWN"
+    }
+    emit("VyomVoiceError", code)
+  }
   override fun onReadyForSpeech(params: Bundle) { emit("VyomVoiceState", "listening") }
   override fun onEndOfSpeech() { emit("VyomVoiceState", "processing") }
   override fun onBeginningOfSpeech() {}

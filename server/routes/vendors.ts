@@ -82,7 +82,7 @@ router.get('/:id', async (req, res) => {
   }
 })
 
-router.post('/', requireAdmin, async (req, res) => {
+router.post('/', async (req, res) => {
   try {
     const name = String(req.body.name || '').trim()
     if (!name) return res.status(400).json({ error: 'Vendor name is required' })
