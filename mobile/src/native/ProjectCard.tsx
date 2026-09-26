@@ -1,11 +1,13 @@
-import { Pressable, Text, View } from 'react-native'
+import { useState } from 'react'
+import { Modal, Pressable, ScrollView, Text, View } from 'react-native'
 import { colors, themedStyles, useMobileTheme, shortDate } from '../theme'
-import { Button, Icon, Panel, s, Tag } from './Ui'
+import { Button, Empty, Icon, Panel, s, Tag } from './Ui'
 import type { Row } from './domain'
 import { ProjectLogo } from './ProjectLogo'
 
 export function ProjectCard({ project, issues, onOpen, onAdd, onTask, onMoveUp, onMoveDown }: { project: Row; issues?: Row[] | null; onOpen: () => void; onAdd?: () => void; onTask: (task: Row) => void; onMoveUp?: () => void; onMoveDown?: () => void }) {
   useMobileTheme()
+  const [details, setDetails] = useState(false)
   const tasks = issues?.filter(task => task.projectId === project.id)
   const total = project._count?.workItems ?? 0
   // The issue endpoint is capped. Only show project-wide totals when all tasks were received.
@@ -15,8 +17,10 @@ export function ProjectCard({ project, issues, onOpen, onAdd, onTask, onMoveUp, 
   const today = new Date(); today.setHours(0, 0, 0, 0)
   const overdue = (tasks ?? []).filter(task => task.status !== 'done' && task.dueDate && new Date(task.dueDate) < today).length
   const preview: Row[] = (tasks ?? project.workItems ?? []).filter((task: Row) => task.status !== 'done').slice(0, 3)
+  const allTasks: Row[] = tasks ?? project.workItems ?? []
+  const openTask = (task: Row) => { setDetails(false); onTask(task) }
   return <Panel>
-    <View style={p.heading}><ProjectLogo logoDataUrl={project.logoDataUrl} color={project.color} size={54} /><View style={{ flex: 1 }}><Text style={p.title}>{project.name}</Text><Text style={s.caption}>{total} tasks{project.code ? ` · ${project.code}` : ''}</Text></View>{(onMoveUp || onMoveDown) && <View style={p.order}><Text style={p.orderLabel}>Priority</Text><View style={{ flexDirection: 'row' }}>{onMoveUp && <Pressable accessibilityRole="button" accessibilityLabel={`Move ${project.name} up`} onPress={onMoveUp} style={p.orderButton}><Icon name="chevron-up" size={18} /></Pressable>}{onMoveDown && <Pressable accessibilityRole="button" accessibilityLabel={`Move ${project.name} down`} onPress={onMoveDown} style={p.orderButton}><Icon name="chevron-down" size={18} /></Pressable>}</View></View>}</View>
+    <Pressable accessibilityRole="button" accessibilityLabel={`View ${project.name} description and tasks`} onPress={() => setDetails(true)} style={({ pressed }) => [p.heading, pressed && { opacity: .7 }]}><ProjectLogo logoDataUrl={project.logoDataUrl} color={project.color} size={54} /><View style={{ flex: 1 }}><Text style={p.title}>{project.name}</Text><Text style={s.caption}>{total} tasks{project.code ? ` · ${project.code}` : ''}</Text></View>{(onMoveUp || onMoveDown) && <View style={p.order}><Text style={p.orderLabel}>Priority</Text><View style={{ flexDirection: 'row' }}>{onMoveUp && <Pressable accessibilityRole="button" accessibilityLabel={`Move ${project.name} up`} onPress={onMoveUp} style={p.orderButton}><Icon name="chevron-up" size={18} /></Pressable>}{onMoveDown && <Pressable accessibilityRole="button" accessibilityLabel={`Move ${project.name} down`} onPress={onMoveDown} style={p.orderButton}><Icon name="chevron-down" size={18} /></Pressable>}</View></View>}</Pressable>
     {complete && total > 0 && <View style={p.progress}><View style={p.progressHeading}><Text style={p.progressLabel}>{done} of {total} completed</Text><Text style={p.progressValue}>{progress}%</Text></View><View accessible accessibilityRole="progressbar" accessibilityLabel={`${project.name} completion`} accessibilityValue={{ min: 0, max: total, now: done }} style={p.track}><View style={[p.fill, { width: `${progress}%` }]} /></View></View>}
     {complete && overdue > 0 && <Text style={p.overdue}>{overdue} overdue {overdue === 1 ? 'task' : 'tasks'}</Text>}
     {!complete && <Text style={s.caption}>Recent tasks · open project for more</Text>}
@@ -26,6 +30,21 @@ export function ProjectCard({ project, issues, onOpen, onAdd, onTask, onMoveUp, 
     </Pressable>)}
     {complete && preview.length === 0 && <Text style={s.caption}>{total ? 'All tasks completed.' : 'Add the first task to get started.'}</Text>}
     <View style={p.actions}><View style={p.action}><Button label="View project" onPress={onOpen} /></View>{onAdd && <View style={p.action}><Button secondary label="Add task" icon="add" onPress={onAdd} /></View>}</View>
+    <Modal visible={details} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setDetails(false)}>
+      <View style={p.modal}>
+        <View style={p.modalHeader}><ProjectLogo logoDataUrl={project.logoDataUrl} color={project.color} size={54} /><View style={{ flex: 1 }}><Text style={p.title}>{project.name}</Text><Text style={s.caption}>{total} tasks{project.code ? ` · ${project.code}` : ''}</Text></View><Pressable accessibilityRole="button" accessibilityLabel="Close" onPress={() => setDetails(false)} style={p.close}><Icon name="close" size={20} /></Pressable></View>
+        <ScrollView contentContainerStyle={{ paddingBottom: 32, gap: 16 }}>
+          <View><Text style={p.modalLabel}>Description</Text><Text style={p.description}>{project.description || 'No description added yet.'}</Text></View>
+          <View><Text style={p.modalLabel}>Tasks · {allTasks.length}</Text>
+            {allTasks.map(task => <Pressable accessibilityRole="button" key={task.id} onPress={() => openTask(task)} style={({ pressed }) => [p.task, pressed && { opacity: .65 }]}>
+              <View style={p.avatar}><Text style={p.initials}>{task.assignee?.name?.trim().split(/\s+/).slice(0, 2).map((part: string) => part[0]).join('').toUpperCase() || '—'}</Text></View>
+              <View style={{ flex: 1, gap: 4 }}><Text style={p.taskTitle}>{task.summary}</Text><Text style={s.caption}>{task.assignee?.name || 'Unassigned'}{task.dueDate ? ` · ${shortDate(task.dueDate)}` : ''}</Text><Tag value={task.status} /></View>
+            </Pressable>)}
+            {!allTasks.length && <Empty title="No tasks yet" message="Tasks added to this project will appear here." icon="checkbox-outline" />}
+          </View>
+        </ScrollView>
+      </View>
+    </Modal>
   </Panel>
 }
 const p = themedStyles(() => ({
@@ -45,4 +64,9 @@ const p = themedStyles(() => ({
   actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 4 },
   action: { flexGrow: 1, flexBasis: 140 },
   order: { alignItems: 'center', gap: 2 }, orderLabel: { color: colors.muted, fontSize: 10, fontWeight: '700' }, orderButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: colors.softBlue },
+  modal: { flex: 1, backgroundColor: colors.background, padding: 20, paddingTop: 24, gap: 18 },
+  modalHeader: { flexDirection: 'row', gap: 12, alignItems: 'center' },
+  close: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
+  modalLabel: { color: colors.muted, fontSize: 12, fontWeight: '700', letterSpacing: .6, textTransform: 'uppercase', marginBottom: 10 },
+  description: { color: colors.ink, fontSize: 15, lineHeight: 22 },
 }))
