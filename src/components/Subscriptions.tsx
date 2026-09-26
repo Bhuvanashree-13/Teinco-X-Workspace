@@ -12,7 +12,6 @@ const emptySubscriptionForm = {
   currency: 'INR',
   billingCycle: 'monthly',
   startDate: new Date().toISOString().slice(0, 10),
-  nextBillingDate: '',
   owner: '',
   businessPurpose: '',
   status: 'active',
@@ -74,7 +73,6 @@ export default function Subscriptions() {
         Object.assign(next, { [key]: typeof next[key] === 'boolean' ? (value ?? next[key]) : String(value ?? '') })
       }
       next.startDate = String(record.startDate || '').slice(0, 10)
-      next.nextBillingDate = String(record.nextBillingDate || '').slice(0, 10)
     }
     setForm(next)
     setShowForm(true)
@@ -94,7 +92,6 @@ export default function Subscriptions() {
         currency: form.currency.trim() || 'INR',
         billingCycle: form.billingCycle,
         startDate: new Date(`${form.startDate}T12:00:00`).toISOString(),
-        nextBillingDate: form.nextBillingDate ? new Date(`${form.nextBillingDate}T12:00:00`).toISOString() : null,
         owner: form.owner.trim() || null,
         businessPurpose: form.businessPurpose.trim() || null,
         status: form.status,
@@ -246,7 +243,6 @@ export default function Subscriptions() {
               <label className="text-sm dark:text-gray-200">Cost<input required min="0.01" step="0.01" type="number" value={form.cost} onChange={event => setForm({ ...form, cost: event.target.value })} className="mt-1 w-full rounded-lg border p-2.5 dark:border-gray-600 dark:bg-gray-900" /></label>
               <label className="text-sm dark:text-gray-200">Currency<input value={form.currency} onChange={event => setForm({ ...form, currency: event.target.value.toUpperCase() })} maxLength={3} className="mt-1 w-full rounded-lg border p-2.5 dark:border-gray-600 dark:bg-gray-900" /></label>
               <label className="text-sm dark:text-gray-200">Start date<input required type="date" value={form.startDate} onChange={event => setForm({ ...form, startDate: event.target.value })} className="mt-1 w-full rounded-lg border p-2.5 dark:border-gray-600 dark:bg-gray-900" /></label>
-              <label className="text-sm dark:text-gray-200">Next billing date<input type="date" value={form.nextBillingDate} onChange={event => setForm({ ...form, nextBillingDate: event.target.value })} className="mt-1 w-full rounded-lg border p-2.5 dark:border-gray-600 dark:bg-gray-900" /></label>
               <label className="text-sm dark:text-gray-200">Owner<input value={form.owner} onChange={event => setForm({ ...form, owner: event.target.value })} placeholder="Team or person responsible" className="mt-1 w-full rounded-lg border p-2.5 dark:border-gray-600 dark:bg-gray-900" /></label>
               <label className="text-sm dark:text-gray-200">Status<select value={form.status} onChange={event => setForm({ ...form, status: event.target.value })} className="mt-1 w-full rounded-lg border p-2.5 dark:border-gray-600 dark:bg-gray-900"><option value="active">Active</option><option value="trial">Trial</option><option value="cancelled">Cancelled</option></select></label>
               <label className="text-sm sm:col-span-2 dark:text-gray-200">Business purpose<input value={form.businessPurpose} onChange={event => setForm({ ...form, businessPurpose: event.target.value })} className="mt-1 w-full rounded-lg border p-2.5 dark:border-gray-600 dark:bg-gray-900" /></label>

@@ -239,20 +239,20 @@ app.use('/api/mobile/android/releases', express.static(path.resolve(process.cwd(
 
 app.get('/api/mobile/android/update', (req, res) => {
   res.setHeader('Cache-Control', 'no-store')
-  const version = process.env.ANDROID_LATEST_VERSION || '2.0.15'
-  const versionCode = Number(process.env.ANDROID_LATEST_VERSION_CODE || 20)
+  const version = process.env.ANDROID_LATEST_VERSION || '2.1.20'
+  const versionCode = Number(process.env.ANDROID_LATEST_VERSION_CODE || 54)
   const downloadUrl = process.env.ANDROID_APK_URL || `https://github.com/Bhuvanashree-13/Teinco-X-Workspace/releases/download/v${version}/Teinco-X-${version}.apk`
   res.json({
     version,
-    versionCode: Number.isInteger(versionCode) && versionCode > 0 ? versionCode : 20,
+    versionCode: Number.isInteger(versionCode) && versionCode > 0 ? versionCode : 54,
     downloadUrl,
     required: process.env.ANDROID_UPDATE_REQUIRED === 'true',
-    notes: process.env.ANDROID_UPDATE_NOTES || 'A newer Teinco-X version is available with the latest workspace improvements.',
+    notes: process.env.ANDROID_UPDATE_NOTES || 'A newer Teinco-X version is available with improved download experience and layout fixes.',
   })
 })
 
 app.get('/api/mobile/android/download', (_req, res) => {
-  const version = process.env.ANDROID_LATEST_VERSION || '2.0.17'
+  const version = process.env.ANDROID_LATEST_VERSION || '2.1.20'
   const downloadUrl = process.env.ANDROID_APK_URL || `https://github.com/Bhuvanashree-13/Teinco-X-Workspace/releases/download/v${version}/Teinco-X-${version}.apk`
   try {
     const target = new URL(downloadUrl)

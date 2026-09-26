@@ -7,6 +7,66 @@ const router = Router()
 
 router.use(requireAuth)
 
+// Helper: Create or update the recurring expense linked to a subscription
+async function syncSubscriptionExpense(sub: any) {
+  const frequencyMap: Record<string, string> = {
+    daily: 'daily',
+    weekly: 'weekly',
+    monthly: 'monthly',
+    quarterly: 'quarterly',
+    half_yearly: 'half_yearly',
+    yearly: 'yearly',
+  }
+
+  if (sub.expenseId) {
+    // Update existing expense
+    return prisma.expense.update({
+      where: { id: sub.expenseId },
+      data: {
+        description: sub.productName,
+        baseCurrencyAmount: sub.cost,
+        originalAmount: sub.cost,
+        expenseDate: sub.startDate,
+        isRecurring: true,
+        frequency: frequencyMap[sub.billingCycle] || 'monthly',
+        startDate: sub.startDate,
+        endDate: sub.status === 'cancelled' ? new Date() : sub.endDate,
+        nextDueDate: sub.nextBillingDate,
+        status: sub.status === 'cancelled' ? 'archived' : 'active',
+      },
+    })
+  } else {
+    // Create new expense
+    const year = new Date().getFullYear()
+    const count = await prisma.expense.count({
+      where: { expenseId: { startsWith: `EXP-${year}` } },
+    })
+    const expense = await prisma.expense.create({
+      data: {
+        expenseId: `EXP-${year}-${String(count + 1).padStart(6, '0')}`,
+        expenseDate: sub.startDate,
+        description: sub.productName,
+        vendorId: sub.vendorId,
+        categoryId: sub.categoryId,
+        baseAmount: sub.cost,
+        totalAmount: sub.cost,
+        baseCurrencyAmount: sub.cost,
+        originalCurrency: sub.currency,
+        originalAmount: sub.cost,
+        exchangeRate: 1,
+        baseCurrency: sub.currency,
+        isRecurring: true,
+        frequency: frequencyMap[sub.billingCycle] || 'monthly',
+        startDate: sub.startDate,
+        nextDueDate: sub.nextBillingDate,
+        businessPurpose: sub.businessPurpose,
+        status: sub.status === 'cancelled' ? 'archived' : 'active',
+      },
+    })
+    return expense
+  }
+}
+
 router.get('/', async (req, res) => {
   try {
     const { status = 'active', upcoming } = req.query
@@ -88,7 +148,14 @@ router.post('/', async (req, res) => {
         subscriptionId: `SUB-${year}-${String(count + 1).padStart(6, '0')}`,
       }
     })
-    res.json(sub)
+    // Create corresponding recurring expense
+    const expense = await syncSubscriptionExpense(sub)
+    const result = await prisma.subscription.update({
+      where: { id: sub.id },
+      data: { expenseId: expense.id },
+      include: { vendor: true, category: true }
+    })
+    res.json(result)
   } catch (error) {
     console.error('Create subscription error:', error)
     res.status(500).json({ error: 'Failed to create subscription' })
@@ -99,8 +166,13 @@ router.put('/:id', requireAdmin, async (req, res) => {
   try {
     const sub = await prisma.subscription.update({
       where: { id: Number(req.params.id) },
-      data: req.body
+      data: req.body,
+      include: { vendor: true, category: true }
     })
+    // Sync the linked recurring expense
+    if (sub.expenseId) {
+      await syncSubscriptionExpense(sub)
+    }
     res.json(sub)
   } catch (error) {
     res.status(500).json({ error: 'Failed to update subscription' })
@@ -109,10 +181,17 @@ router.put('/:id', requireAdmin, async (req, res) => {
 
 router.delete('/:id', requireAdmin, async (req, res) => {
   try {
-    await prisma.subscription.update({
+    const sub = await prisma.subscription.update({
       where: { id: Number(req.params.id) },
       data: { status: 'cancelled' }
     })
+    // Archive the linked recurring expense
+    if (sub.expenseId) {
+      await prisma.expense.update({
+        where: { id: sub.expenseId },
+        data: { status: 'archived' }
+      })
+    }
     res.json({ success: true })
   } catch (error) {
     res.status(500).json({ error: 'Failed to cancel subscription' })

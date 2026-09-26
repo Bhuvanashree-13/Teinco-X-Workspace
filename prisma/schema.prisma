@@ -131,6 +131,11 @@ model Deposit {
   referenceNumber    String?
   paymentMethod      String?
   status             String   @default("received") // received | reversed
+  isRecurring        Boolean  @default(false)
+  frequency          String?  // daily | weekly | monthly | quarterly | half_yearly | yearly | custom
+  startDate          DateTime?
+  endDate            DateTime?
+  nextDueDate        DateTime?
   createdById        Int?
   createdBy          User?    @relation(fields: [createdById], references: [id], onDelete: SetNull)
   createdAt          DateTime @default(now())
@@ -139,6 +144,8 @@ model Deposit {
   @@index([depositDate])
   @@index([status])
   @@index([depositId])
+  @@index([isRecurring])
+  @@index([nextDueDate])
 }
 
 model ExpenseCategory {
@@ -371,6 +378,7 @@ model Expense {
   tags               String?
   attachments        ExpenseAttachment[]
   auditLogs          AuditLog[]
+  subscriptions      Subscription[]      @relation("SubscriptionExpense")
   createdAt          DateTime            @default(now())
   updatedAt          DateTime            @updatedAt
 
@@ -419,12 +427,15 @@ model Subscription {
   status          String           @default("active") // active | trial | cancelled | expired | suspended
   notes           String?
   isArchived      Boolean          @default(false)
+  expenseId       Int?
+  expense         Expense?         @relation("SubscriptionExpense", fields: [expenseId], references: [id], onDelete: SetNull)
   createdAt       DateTime         @default(now())
   updatedAt       DateTime         @updatedAt
 
   @@index([status])
   @@index([nextBillingDate])
   @@index([vendorId])
+  @@index([expenseId])
 }
 
 model Employee {

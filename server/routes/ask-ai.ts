@@ -237,7 +237,14 @@ router.get('/expense-sheet', async (req, res) => {
 router.get('/config', (_req, res) => {
   const config = geminiConfiguration()
   res.set('Cache-Control', 'no-store')
-  res.json({ enabled: Boolean(config), provider: 'Gemini', model: config?.model || null, readOnly: true })
+  res.json({ 
+    enabled: Boolean(config), 
+    provider: 'Gemini', 
+    model: config?.model || null, 
+    apiKeySet: Boolean(process.env.GEMINI_API_KEY),
+    apiKeyPrefix: process.env.GEMINI_API_KEY ? `${process.env.GEMINI_API_KEY.slice(0, 8)}...` : null,
+    readOnly: true 
+  })
 })
 router.post('/test', async (_req, res) => {
   const config = geminiConfiguration()
@@ -251,7 +258,10 @@ router.post('/test', async (_req, res) => {
     if (answer.status !== 'answered' || !answer.facts.length) throw new Error('Invalid answer')
     res.set('Cache-Control', 'no-store')
     res.json({ message: `Connected to ${config.model}. Verified answer test passed.` })
-  } catch { res.status(502).json({ error: 'Could not verify the model connection. Check the Gemini API key, model, billing, and quota.' }) }
+  } catch (error) {
+    console.error('Gemini test failed:', error instanceof Error ? error.message : String(error))
+    res.status(502).json({ error: `Could not verify the model connection: ${error instanceof Error ? error.message : 'Unknown error'}. Check the Gemini API key, model, billing, and quota.` })
+  }
 })
 router.get('/context', async (req, res) => {
   const parsed = periodSchema.safeParse(req.query.period)
@@ -391,9 +401,11 @@ router.post('/', async (req: AuthedRequest, res) => {
     ])
     res.set('Cache-Control', 'no-store')
     res.json({ ...finalAnswer, period: context.period, start: context.start, end: context.end, retrievedAt: context.retrievedAt, coverage: context.coverage, message, conversationId: conversation.id })
-  } catch {
+  } catch (error) {
+    console.error('Vyom request failed:', error instanceof Error ? error.message : String(error))
     if (auditPlan) await prisma.vyomAccessAudit.create({ data: { userId, conversationId: auditConversationId, datasets: auditPlan.datasets, filters: auditPlan.filters, recordCount: 0, sensitiveRefused: auditPlan.sensitiveRequested, outcome: 'failed', ipAddress: req.ip || null, userAgent: req.get('user-agent')?.slice(0, 500) || null } }).catch(() => undefined)
-    res.status(502).json({ error: 'The model could not return a verified answer. Retry or view the available facts.' })
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+    res.status(502).json({ error: `The model could not return a verified answer: ${errorMessage}. Retry or view the available facts.` })
   }
   finally { active.delete(userId) }
 })

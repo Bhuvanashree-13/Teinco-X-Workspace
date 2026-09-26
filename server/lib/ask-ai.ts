@@ -117,7 +117,15 @@ export function selectVerifiedFacts(raw: unknown, context: AskContext) {
 export function geminiConfiguration() {
   const apiKey = process.env.GEMINI_API_KEY?.trim()
   const model = process.env.VYOM_GEMINI_MODEL?.trim() || 'gemini-2.5-flash'
-  if (!apiKey || !/^gemini-[a-z0-9.-]+$/.test(model)) return null
+  if (!apiKey) {
+    console.error('GEMINI_API_KEY is not set in environment variables')
+    return null
+  }
+  if (!/^gemini-[a-z0-9.-]+$/.test(model)) {
+    console.error(`Invalid VYOM_GEMINI_MODEL format: ${model}. Expected format: gemini-[a-z0-9.-]+`)
+    return null
+  }
+  console.log(`Gemini configuration loaded: model=${model}, apiKey=${apiKey.slice(0, 10)}...`)
   return { model, apiKey }
 }
 export async function answerWithGemini(question: string, context: AskContext, configuration: NonNullable<ReturnType<typeof geminiConfiguration>>, history: AskHistoryMessage[] = []) {
@@ -133,7 +141,11 @@ export async function answerWithGemini(question: string, context: AskContext, co
       },
     }),
   })
-  if (!response.ok) throw new Error('Model unavailable')
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => 'No error details')
+    console.error('Gemini API error:', response.status, errorText)
+    throw new Error(`Model unavailable (HTTP ${response.status})`)
+  }
   // Bound provider output and never expose its errors, tool calls, or generated prose.
   const reader = response.body?.getReader()
   if (!reader) throw new Error('Empty response')
@@ -149,7 +161,10 @@ export async function answerWithGemini(question: string, context: AskContext, co
   const payload = JSON.parse(Buffer.concat(chunks).toString('utf8'))
   const candidate = payload.candidates?.[0]
   const parts = candidate?.content?.parts
-  if (candidate?.finishReason !== 'STOP' || !Array.isArray(parts) || !parts.length || parts.some((part: any) => part.functionCall)) throw new Error('Invalid model response')
+  if (candidate?.finishReason !== 'STOP' || !Array.isArray(parts) || !parts.length || parts.some((part: any) => part.functionCall)) {
+    console.error('Invalid model response:', { finishReason: candidate?.finishReason, hasParts: Array.isArray(parts), partsCount: parts?.length, hasFunctionCall: parts?.some((part: any) => part.functionCall) })
+    throw new Error('Invalid model response')
+  }
   const text = parts.filter((part: any) => !part.thought && typeof part.text === 'string').map((part: { text: string }) => part.text).join('')
   if (!text) throw new Error('Invalid model response')
   const result = hybridSelection.parse(JSON.parse(text))

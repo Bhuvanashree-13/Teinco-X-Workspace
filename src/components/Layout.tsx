@@ -131,7 +131,7 @@ export default function Layout() {
               <div className="hidden items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs sm:flex dark:border-gray-700 dark:bg-gray-800">
               {role === 'admin' ? <ShieldCheck className="h-3.5 w-3.5 text-[#1E3A8A] dark:text-blue-300" /> : <UserRound className="h-3.5 w-3.5 text-[#1E3A8A] dark:text-blue-300" />}
               <div>
-                <p className="max-w-[160px] truncate font-semibold text-[#1E3A8A] lg:max-w-[220px] dark:text-white">{user?.name || user?.email}</p>
+                <p className="max-w-[140px] truncate font-semibold text-[#1E3A8A] lg:max-w-[200px] dark:text-white">{user?.name || user?.email}</p>
                 <p className="capitalize text-slate-500 dark:text-slate-400">{role}</p>
               </div>
             </div>
