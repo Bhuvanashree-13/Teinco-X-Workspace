@@ -430,6 +430,62 @@ router.post('/', async (req: AuthedRequest, res) => {
   finally { active.delete(userId) }
 })
 
+// Diagnose Vyom model availability
+router.get('/diagnose', async (req: AuthedRequest, res) => {
+  try {
+    const config = geminiConfiguration()
+    if (!config) {
+      return res.status(503).json({
+        status: 'error',
+        message: 'Model not configured',
+        details: {
+          apiKeySet: !!process.env.GEMINI_API_KEY,
+          modelEnv: process.env.VYOM_GEMINI_MODEL || 'not set',
+          defaultModel: 'gemini-2.0-flash-exp'
+        }
+      })
+    }
+
+    // Try to ping the API
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${config.model}:generateContent`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-goog-api-key': config.apiKey
+      },
+      body: JSON.stringify({
+        contents: [{ role: 'user', parts: [{ text: 'hello' }] }],
+        generationConfig: { maxOutputTokens: 10 }
+      })
+    })
+
+    if (response.ok) {
+      return res.json({
+        status: 'ok',
+        message: 'Gemini API is working',
+        model: config.model,
+        apiKey: config.apiKey.slice(0, 10) + '...'
+      })
+    }
+
+    const errorText = await response.text().catch(() => 'No details')
+    res.status(response.status).json({
+      status: 'error',
+      message: `Gemini API error (HTTP ${response.status})`,
+      model: config.model,
+      httpStatus: response.status,
+      details: errorText.slice(0, 300)
+    })
+  } catch (error) {
+    console.error('Diagnosis error:', error)
+    res.status(500).json({
+      status: 'error',
+      message: error instanceof Error ? error.message : 'Unknown error',
+      type: error instanceof Error ? error.constructor.name : 'unknown'
+    })
+  }
+})
+
 // Submit feedback on a Vyom response
 router.post('/feedback', async (req: AuthedRequest, res) => {
   try {

@@ -116,7 +116,7 @@ export function selectVerifiedFacts(raw: unknown, context: AskContext) {
 }
 export function geminiConfiguration() {
   const apiKey = process.env.GEMINI_API_KEY?.trim()
-  const model = process.env.VYOM_GEMINI_MODEL?.trim() || 'gemini-2.5-flash'
+  const model = process.env.VYOM_GEMINI_MODEL?.trim() || 'gemini-2.0-flash-exp'
   if (!apiKey) {
     console.error('GEMINI_API_KEY is not set in environment variables')
     return null
@@ -143,8 +143,24 @@ export async function answerWithGemini(question: string, context: AskContext, co
   })
   if (!response.ok) {
     const errorText = await response.text().catch(() => 'No error details')
-    console.error('Gemini API error:', response.status, errorText)
-    throw new Error(`Model unavailable (HTTP ${response.status})`)
+    console.error('Gemini API error:', {
+      status: response.status,
+      model: configuration.model,
+      error: errorText.slice(0, 500)
+    })
+
+    let message = `Model unavailable (HTTP ${response.status})`
+    if (response.status === 503) {
+      message = 'Gemini API service unavailable. Check if the API is rate-limited or if the model is available.'
+    } else if (response.status === 401) {
+      message = 'Invalid Gemini API key. Check GEMINI_API_KEY in environment variables.'
+    } else if (response.status === 400) {
+      message = 'Bad request to Gemini API. The model or request format may be incorrect.'
+    } else if (response.status === 429) {
+      message = 'Gemini API rate limit exceeded. Try again in a few moments.'
+    }
+
+    throw new Error(message)
   }
   // Bound provider output and never expose its errors, tool calls, or generated prose.
   const reader = response.body?.getReader()
