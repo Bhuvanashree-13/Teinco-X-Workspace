@@ -64,10 +64,11 @@ router.get('/kpi', async (req, res) => {
     })
 
     // Monthly average
-    const allExpenses = await prisma.expense.findMany({
-      where: { status: 'active', expenseDate: { lte: now } },
+    const recordedExpenses = await prisma.expense.findMany({
+      where: { status: 'active' },
       select: { expenseDate: true, baseCurrencyAmount: true }
     })
+    const allExpenses = recordedExpenses.filter(expense => expense.expenseDate <= now)
 
     const monthlyTotals: Record<string, number> = {}
     allExpenses.forEach(e => {
@@ -176,11 +177,106 @@ router.get('/kpi', async (req, res) => {
       asOf: now.toISOString(),
       totalDeposits: Number(deposits._sum.baseCurrencyAmount) || 0,
       depositCount: deposits._count,
-      availableBalance: (Number(deposits._sum.baseCurrencyAmount) || 0) - allExpenses.reduce((total, expense) => total + Number(expense.baseCurrencyAmount), 0)
+      availableBalance: (Number(deposits._sum.baseCurrencyAmount) || 0) - recordedExpenses.reduce((total, expense) => total + Number(expense.baseCurrencyAmount), 0)
     })
   } catch (error) {
     console.error('Dashboard KPI error:', error)
     res.status(500).json({ error: 'Failed to load dashboard data' })
+  }
+})
+
+const detailMetrics = ['balance', 'deposits', 'mtd', 'ytd', 'average', 'recurring', 'software', 'cloud', 'people', 'hardware', 'category'] as const
+type DetailMetric = typeof detailMetrics[number]
+const categoryCodes: Partial<Record<DetailMetric, string>> = { software: 'SOFTWARE', cloud: 'CLOUD', people: 'PEOPLE', hardware: 'HARDWARE' }
+const DETAIL_ROW_LIMIT = 2000
+
+// Returns the root category plus every descendant, matching how the KPI rolls subcategories up.
+function categoryTreeIds(rootIds: number[], categories: Array<{ id: number; parentId: number | null }>) {
+  const ids = new Set(rootIds)
+  let added = true
+  while (added) {
+    added = false
+    for (const category of categories) {
+      if (category.parentId != null && ids.has(category.parentId) && !ids.has(category.id)) {
+        ids.add(category.id)
+        added = true
+      }
+    }
+  }
+  return [...ids]
+}
+
+// Records behind a single KPI card, filtered exactly as /kpi computes that card.
+router.get('/details', async (req, res) => {
+  try {
+    const metric = String(req.query.metric || '') as DetailMetric
+    if (!detailMetrics.includes(metric)) return res.status(400).json({ error: 'Unknown dashboard metric' })
+    const now = new Date()
+    const expenseWhere: Record<string, unknown> = { status: 'active' }
+    let includeDeposits = false
+    let includeExpenses = true
+
+    if (metric === 'balance') includeDeposits = true
+    if (metric === 'deposits') { includeDeposits = true; includeExpenses = false }
+    if (metric === 'mtd') expenseWhere.expenseDate = { gte: startOfMonth(now), lte: now }
+    if (metric === 'ytd') expenseWhere.expenseDate = { gte: startOfYear(now), lte: now }
+    if (metric === 'average') expenseWhere.expenseDate = { lte: now }
+    if (metric === 'recurring') Object.assign(expenseWhere, { isRecurring: true, frequency: 'monthly' })
+    if (categoryCodes[metric] || metric === 'category') {
+      const categories = await prisma.expenseCategory.findMany({ select: { id: true, parentId: true, code: true } })
+      const rootIds = metric === 'category'
+        ? [Number(req.query.categoryId)].filter(Number.isInteger)
+        : categories.filter(category => category.code === categoryCodes[metric] && category.parentId == null).map(category => category.id)
+      if (metric === 'category' && !rootIds.length) return res.status(400).json({ error: 'categoryId is required' })
+      expenseWhere.expenseDate = { gte: startOfYear(now), lte: now }
+      expenseWhere.categoryId = { in: categoryTreeIds(rootIds, categories) }
+    }
+
+    const [expenses, deposits] = await Promise.all([
+      includeExpenses ? prisma.expense.findMany({
+        where: expenseWhere,
+        include: { vendor: { select: { name: true } }, category: { select: { name: true, color: true } } },
+        orderBy: { expenseDate: 'desc' },
+        take: DETAIL_ROW_LIMIT + 1,
+      }) : Promise.resolve([]),
+      includeDeposits ? prisma.deposit.findMany({
+        where: { status: 'received', depositDate: { lte: now } },
+        orderBy: { depositDate: 'desc' },
+        take: DETAIL_ROW_LIMIT + 1,
+      }) : Promise.resolve([]),
+    ])
+
+    const rows = [
+      ...expenses.slice(0, DETAIL_ROW_LIMIT).map(expense => ({
+        kind: 'expense' as const,
+        id: expense.id,
+        ref: expense.expenseId,
+        date: expense.expenseDate,
+        description: expense.description,
+        party: expense.vendor?.name || null,
+        category: expense.category?.name || 'Uncategorized',
+        color: expense.category?.color || '#64748b',
+        frequency: expense.isRecurring ? expense.frequency : null,
+        amount: Number(expense.baseCurrencyAmount) || 0,
+      })),
+      ...deposits.slice(0, DETAIL_ROW_LIMIT).map(deposit => ({
+        kind: 'deposit' as const,
+        id: deposit.id,
+        ref: deposit.depositId,
+        date: deposit.depositDate,
+        description: deposit.description || deposit.source,
+        party: deposit.source,
+        category: 'Deposit',
+        color: '#12A06A',
+        frequency: null,
+        amount: Number(deposit.baseCurrencyAmount) || 0,
+      })),
+    ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+
+    res.json({ metric, asOf: now.toISOString(), truncated: expenses.length > DETAIL_ROW_LIMIT || deposits.length > DETAIL_ROW_LIMIT, rows })
+  } catch (error) {
+    console.error('Dashboard details error:', error)
+    res.status(500).json({ error: 'Failed to load dashboard details' })
   }
 })
 

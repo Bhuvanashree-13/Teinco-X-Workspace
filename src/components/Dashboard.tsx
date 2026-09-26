@@ -5,6 +5,7 @@ import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Ba
 import { StatCardsSkeleton, ChartSkeleton, Skeleton } from './Skeleton'
 import { useRole } from '../context/RoleContext'
 import { useNavigate } from 'react-router-dom'
+import DashboardDetail, { type DashboardDetailTarget } from './DashboardDetail'
 
 interface DashboardData {
   asOf: string
@@ -57,6 +58,7 @@ export default function Dashboard() {
   const navigate = useNavigate()
   const [trendMonths, setTrendMonths] = useState(6)
   const [showAllCategories, setShowAllCategories] = useState(false)
+  const [detail, setDetail] = useState<DashboardDetailTarget | null>(null)
   const { data, loading, error, refetch } = useApi<DashboardData>(isAdmin ? '/dashboard/kpi' : '/employees/summary')
 
   if (loading) return (
@@ -96,6 +98,7 @@ export default function Dashboard() {
 
   const kpiCards = [
     {
+      metric: 'balance',
       title: 'Recorded Net Balance',
       value: data.availableBalance,
       icon: Landmark,
@@ -105,6 +108,7 @@ export default function Dashboard() {
       ,accent: '#315CF3', tint: '#EEF2FF'
     },
     {
+      metric: 'deposits',
       title: 'Total Deposits',
       value: data.totalDeposits,
       icon: ArrowDownToLine,
@@ -114,6 +118,7 @@ export default function Dashboard() {
       ,accent: '#12A06A', tint: '#EAFBF3'
     },
     {
+      metric: 'mtd',
       title: 'Month to Date',
       value: data.currentMonthSpend,
       icon: Wallet,
@@ -123,6 +128,7 @@ export default function Dashboard() {
       ,accent: '#F79009', tint: '#FFF4E5'
     },
     {
+      metric: 'ytd',
       title: 'YTD Spend',
       value: data.currentYearSpend,
       icon: CreditCard,
@@ -132,6 +138,7 @@ export default function Dashboard() {
       ,accent: '#7A5AF8', tint: '#F2EFFF'
     },
     {
+      metric: 'average',
       title: 'Monthly Average',
       value: data.monthlyAverage,
       icon: Activity,
@@ -141,6 +148,7 @@ export default function Dashboard() {
       ,accent: '#06AED4', tint: '#E9F9FC'
     },
     {
+      metric: 'recurring',
       title: 'Monthly Recurring Expenses',
       value: data.recurringMonthlyCommitment,
       icon: Zap,
@@ -150,6 +158,7 @@ export default function Dashboard() {
       ,accent: '#F04468', tint: '#FFF0F3'
     },
     {
+      metric: 'software',
       title: 'Software',
       value: data.softwareSpend,
       icon: Monitor,
@@ -159,6 +168,7 @@ export default function Dashboard() {
       ,accent: '#4169F7', tint: '#EEF2FF'
     },
     {
+      metric: 'cloud',
       title: 'Cloud/Infra',
       value: data.cloudSpend,
       icon: Server,
@@ -168,6 +178,7 @@ export default function Dashboard() {
       ,accent: '#00A6A6', tint: '#E7FAFA'
     },
     {
+      metric: 'people',
       title: 'People',
       value: data.peopleSpend,
       icon: Users,
@@ -177,6 +188,7 @@ export default function Dashboard() {
       ,accent: '#E56B2F', tint: '#FFF1EA'
     },
     {
+      metric: 'hardware',
       title: 'Hardware',
       value: data.hardwareSpend,
       icon: HardDrive,
@@ -189,6 +201,7 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6">
+      {detail && <DashboardDetail target={detail} onClose={() => setDetail(null)} onOpen={path => { setDetail(null); navigate(path) }} />}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="brand-heading">Executive Dashboard</h2>
@@ -197,10 +210,10 @@ export default function Dashboard() {
         <button type="button" onClick={() => void refetch()} className="rounded-lg border border-slate-200 px-3 py-2 text-xs text-slate-600 dark:border-gray-700 dark:text-slate-300">Refresh · updated {new Date(data.asOf).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</button>
       </div>
 
-      <div className="brand-card p-5 dark:border-gray-700 dark:bg-gray-800"><div className="mb-4 flex items-center justify-between"><div><h3 className="brand-section-heading">Active projects & tasks</h3><p className="mt-1 text-xs text-slate-500">Team delivery at a glance</p></div><button type="button" onClick={() => navigate('/projects')} className="rounded-full bg-blue-50 px-3 py-1.5 text-sm font-medium text-blue-700">Open taskboard</button></div><div className="grid gap-3 md:grid-cols-2">{data.activeProjects.map(project => <div key={project.id} className="overflow-hidden rounded-2xl border dark:border-gray-700" style={{ borderTop: `4px solid ${project.color || '#315CF3'}` }}><div className="flex items-center gap-3 p-4" style={{ backgroundColor: `${project.color || '#315CF3'}12` }}>{project.logoDataUrl ? <img src={project.logoDataUrl} alt="" className="h-11 w-11 rounded-xl bg-white object-cover"/> : <div className="grid h-11 w-11 place-items-center rounded-xl text-lg font-bold text-white" style={{ backgroundColor: project.color || '#315CF3' }}>{project.name.slice(0, 1)}</div>}<div className="min-w-0 flex-1"><strong className="block truncate">{project.name}</strong><span className="text-xs text-slate-500">{project._count.workItems} tasks</span></div><button type="button" onClick={() => navigate('/projects')} className="rounded-lg bg-white px-2.5 py-1.5 text-xs font-semibold text-blue-700 shadow-sm">Add task</button></div><div className="space-y-1.5 p-4">{project.workItems.map(task => <p key={task.id} className="truncate text-sm text-slate-700 dark:text-slate-200">• {task.summary}</p>)}{!project.workItems.length && <p className="text-sm text-slate-500">No open tasks</p>}</div></div>)}</div></div>
+      <div className="brand-card p-5 dark:border-gray-700 dark:bg-gray-800"><div className="mb-4 flex items-center justify-between"><div><h3 className="brand-section-heading">Active projects & tasks</h3><p className="mt-1 text-xs text-slate-500">Team delivery at a glance</p></div><button type="button" onClick={() => navigate('/projects')} className="rounded-full bg-blue-50 px-3 py-1.5 text-sm font-medium text-blue-700">Open taskboard</button></div><div className="grid gap-3 md:grid-cols-2">{data.activeProjects.map(project => <div key={project.id} role="button" tabIndex={0} onClick={() => navigate(`/projects?projectId=${project.id}`)} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); navigate(`/projects?projectId=${project.id}`) } }} aria-label={`Open ${project.name} tasks`} className="cursor-pointer overflow-hidden rounded-2xl border transition hover:-translate-y-0.5 hover:shadow-md dark:border-gray-700" style={{ borderTop: `4px solid ${project.color || '#315CF3'}` }}><div className="flex items-center gap-3 p-4" style={{ backgroundColor: `${project.color || '#315CF3'}12` }}>{project.logoDataUrl ? <img src={project.logoDataUrl} alt="" className="h-11 w-11 rounded-xl bg-white object-cover"/> : <div className="grid h-11 w-11 place-items-center rounded-xl text-lg font-bold text-white" style={{ backgroundColor: project.color || '#315CF3' }}>{project.name.slice(0, 1)}</div>}<div className="min-w-0 flex-1"><strong className="block truncate">{project.name}</strong><span className="text-xs text-slate-500">{project._count.workItems} tasks</span></div><button type="button" onClick={event => { event.stopPropagation(); navigate(`/projects?projectId=${project.id}&newTask=1`) }} className="rounded-lg bg-white px-2.5 py-1.5 text-xs font-semibold text-blue-700 shadow-sm">Add task</button></div><div className="space-y-1.5 p-4">{project.workItems.map(task => <p key={task.id} className="truncate text-sm text-slate-700 dark:text-slate-200">• {task.summary}</p>)}{!project.workItems.length && <p className="text-sm text-slate-500">No open tasks</p>}</div></div>)}</div></div>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
         {kpiCards.map((card, i) => (
-          <div key={i} className="brand-card group p-4 hover:-translate-y-0.5 hover:shadow-md dark:border-gray-700 dark:bg-gray-800" style={{ borderTop: `3px solid ${card.accent}` }}>
+          <button type="button" key={i} onClick={() => setDetail({ metric: card.metric, title: card.title, subtitle: card.subtitle, accent: card.accent, value: card.value })} aria-label={`View details for ${card.title}`} className="brand-card group cursor-pointer p-4 text-left transition hover:-translate-y-0.5 hover:shadow-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 dark:border-gray-700 dark:bg-gray-800" style={{ borderTop: `3px solid ${card.accent}` }}>
             <div className="flex items-start justify-between">
               <div className="flex-1 min-w-0">
                 <p className="brand-label">{card.title}</p>
@@ -219,7 +232,7 @@ export default function Dashboard() {
                 <card.icon className="w-5 h-5 dark:text-gray-300" style={{ color: card.accent }} strokeWidth={1.8} />
               </div>
             </div>
-          </div>
+          </button>
         ))}
       </div>
 
@@ -265,13 +278,13 @@ export default function Dashboard() {
             <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Total recorded spend</p>
           </div>
           <div className="space-y-4">
-            {visibleCategories.map(category => <div key={category.categoryId ?? 'uncategorized'}>
+            {visibleCategories.map(category => <button type="button" key={category.categoryId ?? 'uncategorized'} disabled={category.categoryId == null} onClick={() => setDetail({ metric: 'category', categoryId: category.categoryId, title: category.category, subtitle: 'Year to date · subcategories included', accent: category.color, value: category.amount })} className="-mx-2 block w-[calc(100%+1rem)] rounded-lg px-2 py-1 text-left transition hover:bg-slate-50 disabled:cursor-default dark:hover:bg-gray-700/40">
               <div className="mb-1.5 flex flex-wrap items-start justify-between gap-3 text-sm">
                 <span className="min-w-0 break-words font-medium text-slate-700 dark:text-slate-200">{category.category}</span>
                 <span className="shrink-0 text-right"><span className="finance-value font-semibold text-slate-900 dark:text-white">{formatCurrency(category.amount)}</span><span className="ml-2 text-xs text-slate-500 dark:text-slate-400">{categoryTotal > 0 ? `${(category.amount / categoryTotal * 100).toFixed(1)}%` : '—'}</span></span>
               </div>
               <div className="h-1.5 overflow-hidden rounded-full bg-slate-100 dark:bg-gray-700"><div className="h-full rounded-full" style={{ width: `${Math.max(0, Math.min(100, category.amount / categoryScale * 100))}%`, backgroundColor: category.color }} /></div>
-            </div>)}
+            </button>)}
             {!categories.length && <p className="py-12 text-center text-sm text-slate-500 dark:text-slate-400">No category spending recorded this year.</p>}
           </div>
           {categories.length > 5 && <button type="button" onClick={() => setShowAllCategories(value => !value)} aria-expanded={showAllCategories} className="mt-5 text-sm font-medium text-blue-700 dark:text-blue-300">{showAllCategories ? 'Show fewer categories' : `View all ${categories.length} categories`}</button>}
@@ -287,7 +300,7 @@ export default function Dashboard() {
           <div className="divide-y divide-gray-100 dark:divide-gray-700">
             {data.upcomingExpenses.map((exp, i) => (
               <div key={i} className="py-3 flex items-center justify-between group hover:bg-gray-50 dark:hover:bg-gray-700/30 px-2 -mx-2 rounded-lg transition-colors">
-                <div className="min-w-0">
+                <div className="min-w-0 max-w-[200px] sm:max-w-[250px]">
                   <p className="font-medium text-gray-900 dark:text-white text-sm truncate">{exp.description}</p>
                   <p className="text-xs text-gray-500">{exp.vendor || 'No vendor assigned'} • {exp.category}</p>
                 </div>
