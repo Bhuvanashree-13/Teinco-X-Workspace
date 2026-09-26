@@ -45,19 +45,21 @@ model User {
   vyomAccessAudits VyomAccessAudit[]
   vyomProposalsCreated VyomProposal[] @relation("VyomProposalCreator")
   vyomProposalsReviewed VyomProposal[] @relation("VyomProposalReviewer")
+  vyomFeedback VyomFeedback[] @relation("VyomFeedbackProvider")
   reportedWorkItems WorkItem[] @relation("WorkItemReporter")
   workItemComments WorkItemComment[]
 }
 
 model VyomConversation {
-  id        Int           @id @default(autoincrement())
+  id        Int                        @id @default(autoincrement())
   userId    Int
-  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      User                       @relation(fields: [userId], references: [id], onDelete: Cascade)
   title     String
-  period    String        @default("month")
+  period    String                     @default("month")
   messages  VyomMessage[]
-  createdAt DateTime      @default(now())
-  updatedAt DateTime      @updatedAt
+  metrics   VyomConversationMetrics?
+  createdAt DateTime                   @default(now())
+  updatedAt DateTime                   @updatedAt
 
   @@index([userId, updatedAt])
 }
@@ -69,9 +71,75 @@ model VyomMessage {
   role           String
   content        String           @db.Text
   evidence       Json?
+  feedback       VyomFeedback?
   createdAt      DateTime         @default(now())
 
   @@index([conversationId, createdAt])
+}
+
+model VyomFeedback {
+  id               Int              @id @default(autoincrement())
+  messageId        Int              @unique
+  message          VyomMessage      @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  userId           Int
+  user             User             @relation("VyomFeedbackProvider", fields: [userId], references: [id], onDelete: Cascade)
+  type             String           // correction | clarification | appreciation | error
+  originalResponse String           @db.Text // what AI said
+  correction       String?          @db.Text // user's correction if type=correction
+  category         String?          // finance | people | projects | schedule | general
+  severity         String           @default("medium") // high | medium | low
+  isAccurate       Boolean?         // true if AI was correct, false if wrong
+  helpful          Boolean?         // was the response helpful?
+  learningApplied  String?          // which learning pattern was/should have been used
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  @@index([userId, createdAt])
+  @@index([type, category, createdAt])
+  @@index([severity, createdAt])
+}
+
+model VyomLearning {
+  id                     Int       @id @default(autoincrement())
+  pattern                String    @unique // unique pattern identifier
+  description            String    @db.Text // what mistake this addresses
+  context                String?   @db.Text // when this happens (category, keywords, conditions)
+  correction             String    @db.Text // how to correct it
+  category               String    // finance | people | projects | schedule | general
+  confidence             Float     @default(0.5) // 0-1, how confident we are in this pattern
+  occurrenceCount        Int       @default(1) // how many times this was encountered
+  applicationCount       Int       @default(0) // how many times we used this learning
+  successRate            Float     @default(0.0) // success rate when applied (0-1)
+  keywords               String?   // JSON array of keywords that trigger this learning
+  applicableCategories   String?   // JSON array of categories this applies to
+  relatedFeedbackIds     String?   // JSON array of feedback IDs that led to this learning
+  isActive               Boolean   @default(true)
+  lastUsedAt             DateTime?
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+
+  @@index([category, isActive, confidence])
+  @@index([occurrenceCount, successRate])
+  @@index([lastUsedAt])
+}
+
+model VyomConversationMetrics {
+  id                 Int              @id @default(autoincrement())
+  conversationId     Int              @unique
+  conversation       VyomConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  totalMessages      Int              @default(0)
+  correctMessages    Int              @default(0)
+  incorrectMessages  Int              @default(0)
+  feedbackProvided   Int              @default(0)
+  feedbackRate       Float            @default(0.0) // feedbackProvided / totalMessages
+  avgConfidenceScore Float            @default(0.5)
+  learningPatternsApplied Int @default(0)
+  userSatisfaction   Float?          // 0-1, based on feedback
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+
+  @@index([feedbackRate, updatedAt])
+  @@index([userSatisfaction])
 }
 
 model VyomAccessAudit {

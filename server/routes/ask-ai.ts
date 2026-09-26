@@ -6,6 +6,7 @@ import { categoryBreakdownFor } from '../lib/dashboard-categories.js'
 import { vendorBreakdownFor } from '../lib/analytics-vendors.js'
 import { answerWithGemini, geminiConfiguration, type AskContext, type AskFact } from '../lib/ask-ai.js'
 import { buildVyomReadPlan, type VyomReadPlan } from '../lib/vyom-read-plan.js'
+import { submitFeedback, getLearningInsights, getApplicableLearnings, refineResponseWithLearnings } from '../lib/vyom-learning.js'
 import type { AuthedRequest } from '../middleware/auth.js'
 import { ensureMonthlyLeaveLimit } from './employees.js'
 const router = Router()
@@ -409,4 +410,107 @@ router.post('/', async (req: AuthedRequest, res) => {
   }
   finally { active.delete(userId) }
 })
+
+// Submit feedback on a Vyom response
+router.post('/feedback', async (req: AuthedRequest, res) => {
+  try {
+    const userId = req.user!.userId
+    const { messageId, type, originalResponse, correction, category, severity, isAccurate, helpful } = req.body
+
+    if (!messageId || !type || !originalResponse) {
+      return res.status(400).json({ error: 'messageId, type, and originalResponse are required' })
+    }
+
+    const feedback = await submitFeedback(userId, {
+      messageId,
+      type,
+      originalResponse,
+      correction,
+      category,
+      severity,
+      isAccurate,
+      helpful
+    })
+
+    res.status(201).json(feedback)
+  } catch (error) {
+    console.error('Feedback submission failed:', error)
+    res.status(500).json({ error: 'Failed to submit feedback' })
+  }
+})
+
+// Get learning insights for user
+router.get('/learning/insights', async (req: AuthedRequest, res) => {
+  try {
+    const userId = req.user!.userId
+    const insights = await getLearningInsights(userId)
+    res.json(insights)
+  } catch (error) {
+    console.error('Failed to get learning insights:', error)
+    res.status(500).json({ error: 'Failed to get insights' })
+  }
+})
+
+// Get applicable learnings for a context (for CAG refinement)
+router.post('/learning/applicable', async (req: AuthedRequest, res) => {
+  try {
+    const { category, keywords } = req.body
+
+    if (!category || !Array.isArray(keywords)) {
+      return res.status(400).json({ error: 'category and keywords array are required' })
+    }
+
+    const learnings = await getApplicableLearnings(category, keywords)
+    res.json({ learnings, count: learnings.length })
+  } catch (error) {
+    console.error('Failed to get applicable learnings:', error)
+    res.status(500).json({ error: 'Failed to get learnings' })
+  }
+})
+
+// Refine a response using learned patterns (CAG mechanism)
+router.post('/learning/refine', async (req: AuthedRequest, res) => {
+  try {
+    const { response, category, keywords } = req.body
+
+    if (!response || !category) {
+      return res.status(400).json({ error: 'response and category are required' })
+    }
+
+    const refinement = await refineResponseWithLearnings(response, category, keywords || [])
+    res.json(refinement)
+  } catch (error) {
+    console.error('Failed to refine response:', error)
+    res.status(500).json({ error: 'Failed to refine response' })
+  }
+})
+
+// Get feedback history for a message
+router.get('/message/:messageId/feedback', async (req: AuthedRequest, res) => {
+  try {
+    const messageId = Number(req.params.messageId)
+
+    const feedback = await prisma.vyomFeedback.findUnique({
+      where: { messageId },
+      select: {
+        id: true,
+        type: true,
+        originalResponse: true,
+        correction: true,
+        category: true,
+        severity: true,
+        isAccurate: true,
+        helpful: true,
+        learningApplied: true,
+        createdAt: true
+      }
+    })
+
+    res.json(feedback)
+  } catch (error) {
+    console.error('Failed to get feedback:', error)
+    res.status(500).json({ error: 'Failed to get feedback' })
+  }
+})
+
 export default router
