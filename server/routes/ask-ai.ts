@@ -7,6 +7,7 @@ import { vendorBreakdownFor } from '../lib/analytics-vendors.js'
 import { answerWithGemini, geminiConfiguration, type AskContext, type AskFact } from '../lib/ask-ai.js'
 import { buildVyomReadPlan, type VyomReadPlan } from '../lib/vyom-read-plan.js'
 import { submitFeedback, getLearningInsights, getApplicableLearnings, refineResponseWithLearnings } from '../lib/vyom-learning.js'
+import { formatVyomResponse, formatForUI } from '../lib/vyom-response-formatter.js'
 import type { AuthedRequest } from '../middleware/auth.js'
 import { ensureMonthlyLeaveLimit } from './employees.js'
 const router = Router()
@@ -400,8 +401,26 @@ router.post('/', async (req: AuthedRequest, res) => {
       prisma.vyomAccessAudit.create({ data: { userId, conversationId: conversation.id, datasets: [...(needsWorkspaceSummary ? ['workspace_summary'] : []), ...readPlan.datasets], filters: readPlan.filters, recordCount: context.facts.filter(fact => !fact.id.startsWith('feature-')).length, sensitiveRefused: readPlan.sensitiveRequested, outcome: readPlan.sensitiveRequested ? 'refused' : 'answered', ipAddress: req.ip || null, userAgent: req.get('user-agent')?.slice(0, 500) || null } }),
       ...(draft ? [prisma.auditLog.create({ data: { action: 'vyom_proposal_prepare', entityType: draft.entityType, entityId: draft.targetRef || String(draft.id), userId, newValue: JSON.stringify({ proposalId: draft.id, action: draft.action, payload: draft.payload }), ipAddress: req.ip || null, userAgent: req.get('user-agent')?.slice(0, 500) || null } })] : []),
     ])
+    // Format response with structured components
+    const structured = formatVyomResponse({ ...finalAnswer, period: context.period, retrievedAt: context.retrievedAt, coverage: context.coverage }, finalAnswer.facts || [])
+    const uiFormat = formatForUI(structured)
+
     res.set('Cache-Control', 'no-store')
-    res.json({ ...finalAnswer, period: context.period, start: context.start, end: context.end, retrievedAt: context.retrievedAt, coverage: context.coverage, message, conversationId: conversation.id })
+    res.json({
+      // Structured response (for UI rendering)
+      structured,
+      ui: uiFormat,
+
+      // Original response (for backward compatibility)
+      ...finalAnswer,
+      period: context.period,
+      start: context.start,
+      end: context.end,
+      retrievedAt: context.retrievedAt,
+      coverage: context.coverage,
+      message,
+      conversationId: conversation.id
+    })
   } catch (error) {
     console.error('Vyom request failed:', error instanceof Error ? error.message : String(error))
     if (auditPlan) await prisma.vyomAccessAudit.create({ data: { userId, conversationId: auditConversationId, datasets: auditPlan.datasets, filters: auditPlan.filters, recordCount: 0, sensitiveRefused: auditPlan.sensitiveRequested, outcome: 'failed', ipAddress: req.ip || null, userAgent: req.get('user-agent')?.slice(0, 500) || null } }).catch(() => undefined)
