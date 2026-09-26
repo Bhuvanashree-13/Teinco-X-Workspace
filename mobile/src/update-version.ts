@@ -1,4 +1,4 @@
-export const APP_VERSION = '2.1.20'
+export const APP_VERSION = '2.1.22'
 
 export function isNewerVersion(latest: string, current: string): boolean {
   const clean = (value: string) => value.replace(/^v/i, '').split('-')[0].split('.').map(part => Number(part) || 0)

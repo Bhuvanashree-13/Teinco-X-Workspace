@@ -237,23 +237,28 @@ app.use('/api/mobile/android/releases', express.static(path.resolve(process.cwd(
   },
 }))
 
+// Self-hosted fallback: the APK is committed to android-releases/ and served by the
+// static middleware above, so the update feed works even without GitHub release assets
+// or the ANDROID_APK_URL/ANDROID_LATEST_VERSION Railway env vars being set.
+const selfHostedApkUrl = (version: string) => `https://teinco-x-workspace-production.up.railway.app/api/mobile/android/releases/Teinco-X-${version}.apk`
+
 app.get('/api/mobile/android/update', (req, res) => {
   res.setHeader('Cache-Control', 'no-store')
-  const version = process.env.ANDROID_LATEST_VERSION || '2.1.20'
-  const versionCode = Number(process.env.ANDROID_LATEST_VERSION_CODE || 54)
-  const downloadUrl = process.env.ANDROID_APK_URL || `https://github.com/Bhuvanashree-13/Teinco-X-Workspace/releases/download/v${version}/Teinco-X-${version}.apk`
+  const version = process.env.ANDROID_LATEST_VERSION || '2.1.22'
+  const versionCode = Number(process.env.ANDROID_LATEST_VERSION_CODE || 55)
+  const downloadUrl = process.env.ANDROID_APK_URL || selfHostedApkUrl(version)
   res.json({
     version,
-    versionCode: Number.isInteger(versionCode) && versionCode > 0 ? versionCode : 54,
+    versionCode: Number.isInteger(versionCode) && versionCode > 0 ? versionCode : 55,
     downloadUrl,
     required: process.env.ANDROID_UPDATE_REQUIRED === 'true',
-    notes: process.env.ANDROID_UPDATE_NOTES || 'A newer Teinco-X version is available with improved download experience and layout fixes.',
+    notes: process.env.ANDROID_UPDATE_NOTES || 'Light/dark toggle moved to the home screen, and tapping a project now shows its description and full task list.',
   })
 })
 
 app.get('/api/mobile/android/download', (_req, res) => {
-  const version = process.env.ANDROID_LATEST_VERSION || '2.1.20'
-  const downloadUrl = process.env.ANDROID_APK_URL || `https://github.com/Bhuvanashree-13/Teinco-X-Workspace/releases/download/v${version}/Teinco-X-${version}.apk`
+  const version = process.env.ANDROID_LATEST_VERSION || '2.1.22'
+  const downloadUrl = process.env.ANDROID_APK_URL || selfHostedApkUrl(version)
   try {
     const target = new URL(downloadUrl)
     if (!['https:', 'http:'].includes(target.protocol)) throw new Error('Unsupported URL protocol')
